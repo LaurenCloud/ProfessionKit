@@ -47,6 +47,15 @@ local entriesBefore = #trace.entries
 harness.Event("UI_ERROR_MESSAGE", 999, "Unrelated error after capture window")
 harness.Event("UNIT_SPELLCAST_START", "party1", "unrelated-cast", 100)
 harness.Check("Unrelated errors and other players' casts are not recorded", #trace.entries == entriesBefore)
+harness.combat = true
+harness.Event("ADDON_ACTION_BLOCKED", "UnrelatedAddon", "ProtectedAction()")
+local blocked = Last("ADDON_ACTION_BLOCKED")
+harness.Check("Blocked actions outside crafting retain the client's addon attribution", blocked.details.addon == "UnrelatedAddon"
+    and blocked.details.action == "ProtectedAction()" and blocked.details.inCombat and not blocked.details.windowVisible and blocked.context == nil)
+harness.combat = false
+harness.Event("ADDON_ACTION_FORBIDDEN", "UNKNOWN", "UnknownAction()")
+harness.Check("Unattributed forbidden actions are captured without naming a culprit", Last("ADDON_ACTION_FORBIDDEN").details.addon == "UNKNOWN"
+    and not Last("ADDON_ACTION_FORBIDDEN").details.inCombat and not addon.state.crafting and #harness.crafts == priorCalls + 1)
 harness.Check("Automatic diagnostics do not write chat messages", #harness.messages == messagesBefore)
 harness.Event("PLAYER_LOGOUT")
 harness.Check("Logout records the final material snapshot", Last("saved").context.materials[1].owned == 5)

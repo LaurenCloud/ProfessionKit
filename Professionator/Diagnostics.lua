@@ -102,8 +102,11 @@ function Diagnostics.Event(event, firstArgument, secondArgument, thirdArgument)
         details = {spellID = thirdArgument}
     elseif event == "UI_ERROR_MESSAGE" and recentCraft then
         details = {errorID = firstArgument, message = secondArgument}
-    elseif (event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN") and (firstArgument == "Professionator" or recentCraft) then
-        details = {addon = firstArgument, action = secondArgument}
+    elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
+        -- A warning while travelling can come from any addon, far outside a craft's capture window.
+        -- Preserve the client's attribution without assuming that this observer caused the block.
+        details = {addon = firstArgument, action = secondArgument, inCombat = InCombatLockdown(),
+            windowVisible = addon.UI.frame and addon.UI.frame:IsShown() or false}
     elseif event == "PLAYER_LOGOUT" then
         Diagnostics.Record("saved", {}, lastRecipeID)
     end

@@ -34,7 +34,7 @@ Craftability counts materials directly in your bags. It does not plan intermedia
 
 ## Diagnostics and limitations
 
-Local craft diagnostics are currently enabled and bounded to the latest 160 entries in `ProfessionatorDB.craftDiagnostics`. They record craft requests, client calls/events, recipe/material/session data, and nearby errors. They do not read chat or upload data. `/professionator report` captures an additional diagnostic; `/reload` saves it to disk. Review captured data before sharing it with a bug report.
+Local diagnostics are currently enabled and bounded to the latest 160 entries in `ProfessionatorDB.craftDiagnostics`. They record craft requests, client calls/events, recipe/material/session data, and nearby errors. Blocked or forbidden addon actions are captured even outside crafting, preserving the addon/action named by WoW and whether combat or the custom window was active. The named addon can be unknown; a record does not by itself establish the root cause. Diagnostics do not read chat or upload data. `/professionator report` captures an additional diagnostic; `/reload` saves it to disk. Review captured data before sharing it with a bug report.
 
 The addon has been exercised through full-addon simulated workflows and live personal use. Protected API behavior, client artwork, and station proximity still require in-game verification. Camping grouping currently recognizes the English client category name.
 
