@@ -102,6 +102,11 @@ function methods:SetBackdropColor(...) self.backgroundColor = {...} end
 function methods:SetBackdropBorderColor(...) self.borderColor = {...} end
 function methods:SetBackdrop(backdrop) self.backdrop = backdrop end
 function methods:SetTexture(texture) self.texture = texture end
+function methods:SetStatusBarTexture(texture) self.statusBarTexture = texture end
+function methods:SetStatusBarColor(...) self.statusBarColor = {...} end
+function methods:SetMinMaxValues(minimum, maximum) self.minimum, self.maximum = minimum, maximum end
+function methods:SetValue(value) self.value = value end
+function methods:GetValue() return self.value end
 function methods:SetRotation(rotation) self.rotation = rotation end
 function methods:SetTexCoord(left, right, top, bottom) self.textureCoordinates = {left, right, top, bottom} end
 function methods:SetAtlas(atlas, useAtlasSize)
@@ -210,6 +215,8 @@ function harness.Snapshot(name)
                 name = frame.widgetName, width = frame.width, height = frame.height, points = frame.points, text = frame.text,
                 fontSize = frame.fontSize, textColor = frame.textColor, backgroundColor = frame.backgroundColor,
                 borderColor = frame.borderColor, texture = frame.texture, textureCoordinates = frame.textureCoordinates, rotation = frame.rotation,
+                statusBarTexture = frame.statusBarTexture, statusBarColor = frame.statusBarColor,
+                minimum = frame.minimum, maximum = frame.maximum, value = frame.kind == "StatusBar" and frame.value or nil,
                 atlas = frame.atlas, justify = frame.justify, wrap = frame.wrap, alpha = frame.alpha,
                 template = frame.template, backdrop = frame.backdrop, checked = frame.checked, lineColor = frame.lineColor, startPoint = frame.startPoint, endPoint = frame.endPoint, thickness = frame.thickness})
         end

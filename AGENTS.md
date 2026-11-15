@@ -18,6 +18,8 @@ Left-clicking the minimap icon always opens Professionator. Right-click opens se
 
 Use live C_TradeSkillUI data and Auctionator read-only APIs. Unknown prices are not zero. Vendor purchase prices and vendor sale values are distinct. Label skill ranking as heuristic when no exact chance is available. Show Create all total duration from spell cast time; refine total and remaining time from the live matching cast timestamps. Omit unknown timing rather than inventing a duration.
 
+Quantity +/- buttons are square native buttons with fixed-size centered glyphs. During confirmed crafting, show a native gold progress bar beside the two-line batch count and timing. Progress covers the whole batch using the same timing model as the estimate; update its visual smoothly without rescanning recipes or initiating crafts. Hide it while idle, starting without confirmation, interrupted, completed, or missing timing.
+
 K and the menu button share ToggleProfessionsBook. Route that entry point to the remembered profession when replacement is enabled, including the first use after reload before any profession data is open. Preserve disabled replacement and explicit native fallback. Validate cold opens with Blizzard_Professions unloaded.
 
 No unit tests. Validate full addon loading and user workflows with the integration runner and retain its report. Actual client behavior must be reported separately. Deploy with scripts/deploy.ps1, which backs up existing addon files. Source here is authoritative; do not edit only the installed copy.

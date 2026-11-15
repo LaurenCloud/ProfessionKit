@@ -85,6 +85,17 @@ local function Button(parent, label, width, height, x, y, callback, style)
         -- Retain Blizzard's red button art, pressed/disabled states and font behavior.
         button:SetText(label)
         button.label = button:GetFontString()
+        if style == "quantity" then
+            -- The native text anchors squeeze symbols on narrow buttons. Use a
+            -- centered, fixed-size glyph while keeping the native button artwork.
+            button:SetText("")
+            button.label = Text(button, label, 24, 0, 0, 18, colors.accent)
+            button.label:ClearAllPoints()
+            button.label:SetPoint("CENTER", button, "CENTER", 0, 0)
+            button.label:SetHeight(22)
+            button.label:SetJustifyH("CENTER")
+            button.label:SetWordWrap(false)
+        end
         button:SetBackdrop({edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12})
         button:SetBackdropBorderColor(1, 0.82, 0, 0)
     end
@@ -312,15 +323,32 @@ function UI.Build()
     UI.auctionHeading = Text(UI.detail, "Auction", 80, auctionColumn, 152, 11, colors.muted)
     UI.outputRow = UI.MakeItemRow(UI.detail, 12, 168)
     UI.createAll = Button(UI.detail, "Create all", 120, controlHeight, padding, 248, function() addon.Craft(true) end)
-    UI.create = Button(UI.detail, "Create", 90, controlHeight, 144, 248, function() addon.Craft(false) end)
-    UI.minus = Button(UI.detail, "−", 32, controlHeight, 246, 248, function() UI.SetQuantity((tonumber(UI.quantity:GetText()) or 1) - 1) end)
-    UI.quantity = Edit(UI.detail, 60, controlHeight, 290, 248)
+    UI.create = Button(UI.detail, "Create", 82, controlHeight, 144, 248, function() addon.Craft(false) end)
+    UI.minus = Button(UI.detail, "−", controlHeight, controlHeight, 238, 248, function() UI.SetQuantity((tonumber(UI.quantity:GetText()) or 1) - 1) end, "quantity")
+    UI.quantity = Edit(UI.detail, 52, controlHeight, 290, 248, 6)
     UI.quantity:SetNumeric(true)
     UI.quantity:SetMaxLetters(5)
     UI.quantity:SetText("1")
     UI.quantity:SetScript("OnTextChanged", function() addon.state.craftFailure = nil; UI.RefreshCraftButtons() end)
-    UI.plus = Button(UI.detail, "+", 32, controlHeight, 362, 248, function() UI.SetQuantity((tonumber(UI.quantity:GetText()) or 1) + 1) end)
+    UI.plus = Button(UI.detail, "+", controlHeight, controlHeight, 354, 248, function() UI.SetQuantity((tonumber(UI.quantity:GetText()) or 1) + 1) end, "quantity")
     UI.craftStatus = Text(UI.detail, "", detailWidth - padding * 2, padding, 286, 11, colors.muted)
+    UI.craftProgress = CreateFrame("StatusBar", nil, UI.detail, "BackdropTemplate")
+    UI.craftProgress:SetSize(116, 16)
+    UI.craftProgress:SetBackdrop(panelBackdrop)
+    UI.craftProgress:SetBackdropColor(0.08, 0.06, 0.03, 1)
+    UI.craftProgress:SetBackdropBorderColor(unpack(colors.border))
+    UI.craftProgress:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    UI.craftProgress:SetStatusBarColor(1, 0.72, 0.12)
+    UI.craftProgress:SetMinMaxValues(0, 1)
+    UI.craftProgress:SetValue(0)
+    UI.craftProgress:Hide()
+    UI.craftProgress:SetScript("OnUpdate", function(self, elapsed)
+        self.elapsed = (self.elapsed or 0) + elapsed
+        if self.elapsed < 0.05 then return end
+        self.elapsed = 0
+        UI.RefreshCraftProgress()
+    end)
+    Hint(UI.craftProgress, "Batch progress", "Estimated progress through the entire batch, including the current craft. Uses the same live cast timing as the remaining-time estimate.")
 end
 
 function UI.MakeItemRow(parent, x, y)
@@ -404,12 +432,18 @@ function UI.Layout(recipe)
     local controlsTop = outputHeadingTop + 14 + padding + materialRowHeight + padding
     Place(UI.createAll, UI.detail, padding, controlsTop)
     Place(UI.create, UI.detail, 144, controlsTop)
-    Place(UI.minus, UI.detail, 246, controlsTop)
+    Place(UI.minus, UI.detail, 238, controlsTop)
     Place(UI.quantity.background, UI.detail, 290, controlsTop)
-    Place(UI.plus, UI.detail, 362, controlsTop)
+    Place(UI.plus, UI.detail, 354, controlsTop)
     Place(UI.requirements, UI.detail, padding, controlsTop + padding)
-    Place(UI.craftStatus, UI.detail, padding, controlsTop + controlHeight + padding)
-    local detailHeight = controlsTop + controlHeight + padding + (UI.craftStatus:GetText() ~= "" and 14 + padding or 0)
+    local statusTop = controlsTop + controlHeight + padding
+    local progressVisible = UI.craftProgress:IsShown()
+    local statusLeft = progressVisible and (padding + UI.craftProgress:GetWidth() + padding) or padding
+    Place(UI.craftProgress, UI.detail, padding, statusTop + 5)
+    Place(UI.craftStatus, UI.detail, statusLeft, statusTop)
+    UI.craftStatus:SetWidth(detailWidth - statusLeft - padding)
+    local statusHeight = progressVisible and 28 or 14
+    local detailHeight = statusTop + (UI.craftStatus:GetText() ~= "" and statusHeight + padding or 0)
     UI.detail:SetHeight(detailHeight)
 
     local listHeight = UI.recipeContentHeight or 74
@@ -424,6 +458,27 @@ function UI.Layout(recipe)
     local windowHeight = workspaceHeight + workspaceTop + padding
     UI.frame:SetHeight(windowHeight)
     UI.frame:SetScale(math.min(1, (UIParent:GetWidth() - 40) / windowWidth, (UIParent:GetHeight() - 60) / windowHeight))
+end
+
+local function CraftStatus(request)
+    if not request.started then return "Starting craft…", nil end
+    local status = "Crafting " .. (request.count - request.remaining + 1) .. "/" .. request.count
+    local totalSeconds, remainingSeconds = Model.BatchTiming(request, GetTime())
+    if totalSeconds and totalSeconds > 0 and remainingSeconds then
+        status = status .. "\nest. " .. Model.Duration(remainingSeconds) .. " left / " .. Model.Duration(totalSeconds) .. " total"
+        return status, math.max(0, math.min(1, 1 - remainingSeconds / totalSeconds))
+    end
+    return status, nil
+end
+
+function UI.RefreshCraftProgress()
+    local request = addon.state.craftRequest
+    if not request or not UI.craftProgress:IsShown() then return end
+    local status, progress = CraftStatus(request)
+    if progress ~= nil then
+        UI.craftProgress:SetValue(progress)
+        UI.craftStatus:SetText(status)
+    end
 end
 
 function UI.RefreshCraftButtons()
@@ -447,16 +502,14 @@ function UI.RefreshCraftButtons()
     if reason and reason:match("^Requires:") then reason = nil end
     local request, failure = addon.state.craftRequest, addon.state.craftFailure
     local status = failure and recipe and failure.recipeID == recipe.id and failure.message or reason or ""
+    local progress
     if request then
-        status = "Starting craft…"
-        if request.started then
-            local totalSeconds, remainingSeconds = Model.BatchTiming(request, GetTime())
-            status = "Crafting " .. (request.count - request.remaining + 1) .. "/" .. request.count
-            if remainingSeconds then status = status .. " · est. " .. Model.Duration(remainingSeconds) .. " left / " .. Model.Duration(totalSeconds) .. " total" end
-        end
+        status, progress = CraftStatus(request)
     elseif status == "" and recipe and recipe.castSeconds and recipe.available > 0 then
         status = "Create all: est. " .. Model.Duration(recipe.castSeconds * recipe.available) .. " total"
     end
+    UI.craftProgress:SetShown(controlsVisible and progress ~= nil)
+    UI.craftProgress:SetValue(progress or 0)
     UI.craftStatus:SetText(controlsVisible and status or "")
     UI.Layout(recipe)
 end

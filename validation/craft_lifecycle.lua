@@ -15,6 +15,7 @@ harness.Check("Blocked-action explanation survives routine refresh", UI.craftSta
 harness.silentCraft = true
 UI.create:Click()
 harness.Check("Unacknowledged request says Starting instead of Crafting", UI.craftStatus:GetText() == "Starting craft…")
+harness.Check("Unacknowledged request cannot show simulated crafting progress", not UI.craftProgress:IsShown())
 harness.Event("UNIT_SPELLCAST_FAILED", "player", "unrelated", 999)
 harness.Check("Unrelated player spells do not stop the craft request", addon.state.crafting)
 harness.Advance(3.2)
@@ -35,6 +36,8 @@ for craftIndex = 1, 3 do
     harness.Event("BAG_UPDATE_DELAYED")
     if craftIndex < 3 then
         harness.Check("Batch remains active after craft " .. craftIndex, addon.state.crafting and addon.state.craftRequest.remaining == 3 - craftIndex)
+        UI.craftProgress:Run("OnUpdate", 0.1)
+        harness.Check("Batch progress survives craft " .. craftIndex, UI.craftProgress:IsShown() and UI.craftProgress:GetValue() > 0 and UI.craftProgress:GetValue() < 1)
         harness.Event("UNIT_SPELLCAST_START", "player", "batch-cast", 2657)
     end
 end

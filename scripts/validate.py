@@ -74,6 +74,11 @@ def render_scene(scene, destination):
             draw.rectangle((x, y, x + width, y + height), fill=background, outline=border)
         if widget.get("template") == "BasicFrameTemplate":
             draw.rectangle((x, y, x + width, y + 24), fill=(48, 39, 27), outline=(130, 115, 80))
+        if widget["kind"] == "StatusBar":
+            minimum, maximum = widget.get("minimum", 0), widget.get("maximum", 1)
+            progress = max(0, min(1, (widget.get("value", 0) - minimum) / (maximum - minimum)))
+            if progress > 0:
+                draw.rectangle((x + 2, y + 2, x + 2 + (width - 4) * progress, y + height - 2), fill=color(widget.get("statusBarColor"), (255, 184, 31)))
         if widget.get("checked"):
             draw.line((x + 5, y + 13, x + 11, y + 19, x + 22, y + 6), fill=(255, 209, 0), width=3)
         if widget["kind"] == "Line":
