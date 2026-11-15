@@ -1,0 +1,12 @@
+# Local runtimes, captured client data, backups, and downloaded Blizzard references.
+/.tools/
+/artifacts/
+/backups/
+/reference/
+/.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+# Local comparison-sheet utility; its downloaded artwork is not distributed.
+/scripts/arrow_options.py

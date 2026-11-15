@@ -1,0 +1,54 @@
+-- Drive the complete addon through a deliberately silent rejection and a native craft.
+-- These fixtures verify observability, not the cause of the real client's failure.
+local harness, addon = Harness, ProfessionatorAddon
+local UI = addon.UI
+local trace = ProfessionatorDB.craftDiagnostics
+local function Last(kind)
+    for index = #trace.entries, 1, -1 do
+        if trace.entries[index].kind == kind then return trace.entries[index] end
+    end
+end
+
+local messagesBefore = #harness.messages
+UI.quantity:SetText("1")
+harness.silentCraft = true
+UI.createAll:Click()
+harness.Advance(3.3)
+local request, call, timeout = Last("craft-request"), Last("craft-api-call"), Last("craft-idle-timeout")
+harness.Check("Silent rejection records request, exact API arguments and timeout", request.details.count == 6 and request.details.valid
+    and call.details.argumentCount == 2 and call.details.craftingReagents == "<nil>" and timeout.context.ready and not addon.state.crafting)
+harness.Check("Craft trace includes live material and recipe evidence", request.context.materials[1].itemID == 2770
+    and request.context.materials[1].owned == 6 and request.context.recipeInfo.recipeID == 2657)
+harness.Event("UI_ERROR_MESSAGE", 123, "Simulated craft rejection")
+harness.Event("ADDON_ACTION_BLOCKED", "Professionator", "CraftRecipe")
+harness.Check("Client errors and blocked actions are captured", Last("UI_ERROR_MESSAGE").details.message == "Simulated craft rejection"
+    and Last("ADDON_ACTION_BLOCKED").details.action == "CraftRecipe")
+harness.silentCraft = false
+
+addon.Native()
+local priorCalls = #harness.crafts
+C_TradeSkillUI.CraftRecipe(2657, 1, {}, 1, nil, false)
+call = Last("craft-api-call")
+harness.Check("Native comparison preserves empty reagents, nil order and false concentration", call.source == "original-window"
+    and call.details.argumentCount == 6 and type(call.details.craftingReagents) == "table" and next(call.details.craftingReagents) == nil
+    and call.details.recipeLevel == 1 and call.details.orderID == "<nil>" and call.details.applyConcentration == false)
+harness.Check("Observation does not add or repeat craft calls", #harness.crafts == priorCalls + 1 and harness.crafts[#harness.crafts].count == 1)
+harness.Check("Native cast-start event is recorded", Last("UNIT_SPELLCAST_START").details.spellID == 2657)
+harness.inventory[2770] = 5
+harness.inventory[2840] = (harness.inventory[2840] or 0) + 1
+harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "simulation-cast", 2657)
+harness.Event("TRADE_SKILL_ITEM_CRAFTED_RESULT", {itemID = 2840, quantity = 1})
+harness.casting = false
+harness.Event("UPDATE_TRADESKILL_CAST_STOPPED")
+harness.Check("Successful comparison records result and changed material count", Last("TRADE_SKILL_ITEM_CRAFTED_RESULT").details.itemID == 2840
+    and Last("UPDATE_TRADESKILL_CAST_STOPPED").context.materials[1].owned == 5)
+harness.Advance(16)
+local entriesBefore = #trace.entries
+harness.Event("UI_ERROR_MESSAGE", 999, "Unrelated error after capture window")
+harness.Event("UNIT_SPELLCAST_START", "party1", "unrelated-cast", 100)
+harness.Check("Unrelated errors and other players' casts are not recorded", #trace.entries == entriesBefore)
+harness.Check("Automatic diagnostics do not write chat messages", #harness.messages == messagesBefore)
+harness.Event("PLAYER_LOGOUT")
+harness.Check("Logout records the final material snapshot", Last("saved").context.materials[1].owned == 5)
+harness.Check("Diagnostic observers remained healthy", trace.recordingError == nil)
+harness.result.craftDiagnostics = trace
