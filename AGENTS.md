@@ -16,11 +16,13 @@ Keep Blizzard's trade-skill session alive while hiding its visual window. Craft 
 
 Craft through a direct C_TradeSkillUI.CraftRecipe(recipeID, count) call on the hardware-click path, matching the user's formerly installed ProfessionBuddy 2.1.1 Forever implementation. Do not wrap the action in pcall/xpcall or schedule it. Observe rejection via client events; only spellcast-start confirms crafting, and matching spellcast-success events complete a batch. Watchdog timers must be tied to their request and must never craft.
 
+The watchdog must respect native queued recasts between individual casts. A confirmed batch requires two separated idle observations before a silent stop; overdue timers start a fresh observation window so background throttling cannot beat queued cast events. Missing queue APIs fall back to the same idle grace. Real interruption/failure events still end the request immediately. Record timer recovery and queue state in diagnostics; never infer completed craft counts from elapsed time.
+
 Left-clicking the minimap icon always opens Professionator. Right-click opens settings with a persistent replace-normal-window checkbox, defaulting on only when unset. Changes apply to the next normal profession open; an explicit original-window fallback lasts for that session only.
 
 Use live C_TradeSkillUI data and Auctionator read-only APIs. Unknown prices are not zero. Vendor purchase prices and vendor sale values are distinct. Label skill ranking as heuristic when no exact chance is available. Show Create all total duration from spell cast time; refine total and remaining time from the live matching cast timestamps. Omit unknown timing rather than inventing a duration.
 
-Quantity +/- buttons are square native buttons with fixed-size centered glyphs. During confirmed crafting, show a native gold progress bar beside the two-line batch count and timing. Progress covers the whole batch using the same timing model as the estimate; update its visual smoothly without rescanning recipes or initiating crafts. Hide it while idle, starting without confirmation, interrupted, completed, or missing timing.
+Quantity +/- buttons are square native buttons with fixed-size centered glyphs. During confirmed crafting, center the remaining time in white with a dark shadow on the native gold progress bar. Beside it, show the batch count and estimated total time. Progress covers the whole batch using the same timing model as the estimate; update its visual smoothly without rescanning recipes or initiating crafts. Hide it while idle, starting without confirmation, interrupted, completed, or missing timing.
 
 K and the menu button share ToggleProfessionsBook. Route that entry point to the remembered profession when replacement is enabled, including the first use after reload before any profession data is open. Preserve disabled replacement and explicit native fallback. Validate cold opens with Blizzard_Professions unloaded.
 

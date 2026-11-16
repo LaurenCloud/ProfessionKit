@@ -131,6 +131,9 @@ def render_scene(scene, destination):
             remaining_width = max(0, width - draw.textlength(line, font=font))
             text_x = x + (remaining_width / 2 if widget.get("justify") == "CENTER" else remaining_width if widget.get("justify") == "RIGHT" else 0)
             shade = color(widget.get("textColor"), (232, 235, 230))
+            if widget.get("shadowColor"):
+                shadow_x, shadow_y = widget.get("shadowOffset", [1, -1])
+                draw.text((text_x + shadow_x, y + line_number * (font.size + 2) - 2 - shadow_y), line, font=font, fill=color(widget["shadowColor"], (0, 0, 0)))
             draw.text((text_x, y + line_number * (font.size + 2) - 2), line, font=font, fill=shade)
             for coin_match in re.finditer("●", line):
                 if not coin_metals:
@@ -178,6 +181,7 @@ def main():
     preferences_runtime = load_addon(replace_native=False)
     camping_runtime = load_addon()
     recipe_ranking_runtime = load_addon()
+    background_runtime = load_addon()
     success = True
     error = None
     try:
@@ -191,6 +195,9 @@ def main():
             runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
         recipe_ranking_runtime.execute((PROJECT / "validation/recipe_ranking.lua").read_text(encoding="utf-8"))
         for check in plain(recipe_ranking_runtime.globals().Harness.checks):
+            runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
+        background_runtime.execute((PROJECT / "validation/background_crafting.lua").read_text(encoding="utf-8"))
+        for check in plain(background_runtime.globals().Harness.checks):
             runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
         for open_from_menu in (False, True):
             first_open_runtime = load_addon()

@@ -1,6 +1,6 @@
 local addonName, addon = ...
 local Client, UI, Model = addon.Client, addon.UI, addon.Model
-addon.version = "0.1.13"
+addon.version = "0.1.14"
 addon.state = { recipes = {}, query = "", filter = "all", sort = "skill", loading = false, crafting = false }
 local state = addon.state
 local events = CreateFrame("Frame")
@@ -81,16 +81,49 @@ local function ReadCraftTiming(request)
     end
 end
 
+local function QueuedCrafts()
+    local readRemaining = C_TradeSkillUI.GetRemainingRecasts
+    if type(readRemaining) ~= "function" then return nil end
+    local success, remaining = pcall(readRemaining)
+    if not success or type(remaining) ~= "number" or (issecretvalue and issecretvalue(remaining)) then return nil end
+    if remaining < 0 or remaining == math.huge or remaining ~= math.floor(remaining) then return nil end
+    return remaining
+end
+
+local craftWatchInterval = 3
 local function WatchCraft(request)
-    C_Timer.After(3, function()
+    local expectedAt = GetTime() + craftWatchInterval
+    C_Timer.After(craftWatchInterval, function()
         -- An older request's timer must never stop a newer batch.
         if state.craftRequest ~= request then return end
-        if UnitCastingInfo("player") or UnitChannelInfo("player") or GetTime() - request.lastActivity < 3 then
+        local now = GetTime()
+        local queuedCrafts = QueuedCrafts()
+        -- A backgrounded client can run an overdue timer before queued cast
+        -- events. Start a fresh observation window instead of declaring failure.
+        if now - expectedAt > 1 then
+            request.idleSince = nil
+            addon.Diagnostics.Record("craft-watch-resumed", {timerDelay = now - expectedAt, queuedCrafts = queuedCrafts}, request.recipeID)
             WatchCraft(request)
-        else
-            addon.Diagnostics.Record("craft-idle-timeout", {recipeID = request.recipeID, count = request.count, started = request.started}, request.recipeID)
-            FinishCraft(request.started and "Crafting stopped." or "Craft did not start. Try Original window.")
+            return
         end
+        -- A batch remains active between individual casts. The native queue is
+        -- evidence of that activity even while UnitCastingInfo returns nothing.
+        if UnitCastingInfo("player") or UnitChannelInfo("player") or (queuedCrafts and queuedCrafts > 0)
+            or now - request.lastActivity < craftWatchInterval then
+            request.idleSince = nil
+            WatchCraft(request)
+            return
+        end
+        if request.started then
+            request.idleSince = request.idleSince or now
+            if now - request.idleSince < craftWatchInterval then
+                WatchCraft(request)
+                return
+            end
+        end
+        addon.Diagnostics.Record("craft-idle-timeout", {recipeID = request.recipeID, count = request.count, started = request.started,
+            queuedCrafts = queuedCrafts, idleSeconds = request.idleSince and now - request.idleSince}, request.recipeID)
+        FinishCraft(request.started and "Crafting stopped." or "Craft did not start. Try Original window.")
     end)
 end
 
@@ -308,11 +341,13 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
     elseif event == "TRADE_SKILL_CRAFT_BEGIN" then
         if state.craftRequest and state.craftRequest.recipeID == firstArgument then
             state.craftRequest.lastActivity = GetTime()
+            state.craftRequest.idleSince = nil
         end
     elseif event:match("^UNIT_SPELLCAST_") then
         local request = state.craftRequest
         if request and firstArgument == "player" and thirdArgument == request.recipeID then
             request.lastActivity = GetTime()
+            request.idleSince = nil
             if event == "UNIT_SPELLCAST_START" then
                 request.started = true
                 ReadCraftTiming(request)

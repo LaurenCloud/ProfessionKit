@@ -96,6 +96,8 @@ end
 function methods:SetFont(path, size) self.fontSize = size end
 function methods:SetFontObject() self.fontSize = 13 end
 function methods:SetTextColor(...) self.textColor = {...} end
+function methods:SetShadowColor(...) self.shadowColor = {...} end
+function methods:SetShadowOffset(horizontal, vertical) self.shadowOffset = {horizontal, vertical} end
 function methods:SetJustifyH(value) self.justify = value end
 function methods:SetWordWrap(value) self.wrap = value end
 function methods:SetBackdropColor(...) self.backgroundColor = {...} end
@@ -194,6 +196,19 @@ function harness.Advance(seconds)
     end
     harness.now = target
 end
+function harness.ResumeAfter(seconds)
+    -- Model a client that does not service timers while suspended. Overdue
+    -- callbacks all resume at the current clock, before delayed event delivery.
+    harness.now = harness.now + seconds
+    local executions = 0
+    while true do
+        table.sort(harness.timers, function(left, right) return left.at < right.at end)
+        if not harness.timers[1] or harness.timers[1].at > harness.now then break end
+        local timer = table.remove(harness.timers, 1)
+        timer.callback(); executions = executions + 1
+        assert(executions < 500, "Runaway resumed timer scheduling")
+    end
+end
 function harness.Event(event, ...)
     local unit, _, spellID = ...
     if event == "UNIT_SPELLCAST_START" and unit == "player" then
@@ -214,6 +229,7 @@ function harness.Snapshot(name)
             table.insert(rows, {identifier = frame.identifier, parent = frame.parent and frame.parent.identifier, kind = frame.kind,
                 name = frame.widgetName, width = frame.width, height = frame.height, points = frame.points, text = frame.text,
                 fontSize = frame.fontSize, textColor = frame.textColor, backgroundColor = frame.backgroundColor,
+                shadowColor = frame.shadowColor, shadowOffset = frame.shadowOffset,
                 borderColor = frame.borderColor, texture = frame.texture, textureCoordinates = frame.textureCoordinates, rotation = frame.rotation,
                 statusBarTexture = frame.statusBarTexture, statusBarColor = frame.statusBarColor,
                 minimum = frame.minimum, maximum = frame.maximum, value = frame.kind == "StatusBar" and frame.value or nil,
@@ -266,6 +282,7 @@ C_Spell = {GetSpellInfo = function(id)
     return harness.recipes[id] and {spellID = id, castTime = harness.spellCastMilliseconds or 3000}
 end}
 C_TradeSkillUI = {
+    GetRemainingRecasts = function() return harness.remainingRecasts or 0 end,
     IsTradeSkillReady = function() return harness.ready end,
     IsDataSourceChanging = function() return not harness.ready end,
     IsTradeSkillLinked = function() return harness.linked end,

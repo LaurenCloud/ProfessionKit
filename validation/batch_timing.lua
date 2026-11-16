@@ -14,16 +14,18 @@ local _, _, _, _, ageTop = UI.market:GetPoint()
 harness.Check("AH age sits in the header and cost/margin text is removed", ageTop == -14 and UI.cost == nil and UI.market:GetText() == "AH prices\n1 day old")
 
 UI.create:Click()
-harness.Check("Batch start displays total and remaining time", UI.craftStatus:GetText() == "Crafting 1/3\nest. 9s left / 9s total")
+harness.Check("Batch start separates total time from the countdown on the bar", UI.craftStatus:GetText() == "Crafting 1/3\nest. 9s total" and UI.craftRemaining:GetText() == "9s left")
+harness.Check("Remaining time is centered white text on the progress bar", UI.craftRemaining.parent == UI.craftProgress and UI.craftRemaining:GetPoint() == "CENTER"
+    and UI.craftRemaining.textColor[1] == 1 and UI.craftRemaining.textColor[2] == 1 and UI.craftRemaining.textColor[3] == 1)
 harness.Check("Confirmed batch starts its progress bar at zero", UI.craftProgress:IsShown() and UI.craftProgress:GetValue() == 0)
 harness.Advance(1)
 UI.craftProgress:Run("OnUpdate", 0.1)
-harness.Check("Countdown subtracts elapsed time from the active cast", UI.craftStatus:GetText() == "Crafting 1/3\nest. 8s left / 9s total")
+harness.Check("Countdown subtracts elapsed time from the active cast", UI.craftStatus:GetText() == "Crafting 1/3\nest. 9s total" and UI.craftRemaining:GetText() == "8s left")
 harness.Check("Progress covers the entire batch and updates without a recipe refresh", math.abs(UI.craftProgress:GetValue() - 1 / 9) < 0.0001)
 harness.Snapshot("mining-batch-timer")
 harness.castEnd = harness.castEnd + 1
 harness.Event("UNIT_SPELLCAST_DELAYED", "player", "delayed-cast", 2657)
-harness.Check("Cast delay updates the remaining-time estimate", UI.craftStatus:GetText() == "Crafting 1/3\nest. 11s left / 12s total")
+harness.Check("Cast delay updates both displayed time estimates", UI.craftStatus:GetText() == "Crafting 1/3\nest. 12s total" and UI.craftRemaining:GetText() == "11s left")
 harness.Check("Cast delay also corrects estimated batch progress", math.abs(UI.craftProgress:GetValue() - 1 / 12) < 0.0001)
 harness.casting = false
 harness.Event("UNIT_SPELLCAST_INTERRUPTED", "player", "interrupted-cast", 2657)
@@ -34,7 +36,7 @@ UI.quantity:SetText("1"); addon.Refresh()
 harness.Check("Missing spell data does not invent a duration or progress", UI.selectedRecipe.castSeconds == nil and UI.craftStatus:GetText() == "" and not UI.craftProgress:IsShown())
 harness.castDuration = 2
 UI.create:Click()
-harness.Check("Actual cast timing can supply missing recipe duration", UI.craftStatus:GetText() == "Crafting 1/1\nest. 2s left / 2s total" and UI.craftProgress:IsShown())
+harness.Check("Actual cast timing can supply missing recipe duration", UI.craftStatus:GetText() == "Crafting 1/1\nest. 2s total" and UI.craftRemaining:GetText() == "2s left" and UI.craftProgress:IsShown())
 harness.casting = false
 harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "finished-cast", 2657)
 harness.missingSpellData, harness.castDuration = nil, nil

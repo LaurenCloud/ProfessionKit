@@ -347,6 +347,14 @@ function UI.Build()
     UI.craftProgress:SetStatusBarColor(1, 0.72, 0.12)
     UI.craftProgress:SetMinMaxValues(0, 1)
     UI.craftProgress:SetValue(0)
+    UI.craftRemaining = Text(UI.craftProgress, "", 104, 0, 0, 11, {1, 1, 1})
+    UI.craftRemaining:ClearAllPoints()
+    UI.craftRemaining:SetPoint("CENTER", UI.craftProgress, "CENTER", 0, 0)
+    UI.craftRemaining:SetHeight(14)
+    UI.craftRemaining:SetJustifyH("CENTER")
+    UI.craftRemaining:SetWordWrap(false)
+    UI.craftRemaining:SetShadowColor(0, 0, 0, 1)
+    UI.craftRemaining:SetShadowOffset(1, -1)
     UI.craftProgress:Hide()
     UI.craftProgress:SetScript("OnUpdate", function(self, elapsed)
         self.elapsed = (self.elapsed or 0) + elapsed
@@ -471,8 +479,8 @@ local function CraftStatus(request)
     local status = "Crafting " .. (request.count - request.remaining + 1) .. "/" .. request.count
     local totalSeconds, remainingSeconds = Model.BatchTiming(request, GetTime())
     if totalSeconds and totalSeconds > 0 and remainingSeconds then
-        status = status .. "\nest. " .. Model.Duration(remainingSeconds) .. " left / " .. Model.Duration(totalSeconds) .. " total"
-        return status, math.max(0, math.min(1, 1 - remainingSeconds / totalSeconds))
+        status = status .. "\nest. " .. Model.Duration(totalSeconds) .. " total"
+        return status, math.max(0, math.min(1, 1 - remainingSeconds / totalSeconds)), Model.Duration(remainingSeconds) .. " left"
     end
     return status, nil
 end
@@ -480,10 +488,11 @@ end
 function UI.RefreshCraftProgress()
     local request = addon.state.craftRequest
     if not request or not UI.craftProgress:IsShown() then return end
-    local status, progress = CraftStatus(request)
+    local status, progress, remainingText = CraftStatus(request)
     if progress ~= nil then
         UI.craftProgress:SetValue(progress)
         UI.craftStatus:SetText(status)
+        UI.craftRemaining:SetText(remainingText)
     end
 end
 
@@ -508,14 +517,15 @@ function UI.RefreshCraftButtons()
     if reason and reason:match("^Requires:") then reason = nil end
     local request, failure = addon.state.craftRequest, addon.state.craftFailure
     local status = failure and recipe and failure.recipeID == recipe.id and failure.message or reason or ""
-    local progress
+    local progress, remainingText
     if request then
-        status, progress = CraftStatus(request)
+        status, progress, remainingText = CraftStatus(request)
     elseif status == "" and recipe and recipe.castSeconds and recipe.available > 0 then
         status = "Create all: est. " .. Model.Duration(recipe.castSeconds * recipe.available) .. " total"
     end
     UI.craftProgress:SetShown(controlsVisible and progress ~= nil)
     UI.craftProgress:SetValue(progress or 0)
+    UI.craftRemaining:SetText(remainingText or "")
     UI.craftStatus:SetText(controlsVisible and status or "")
     UI.Layout(recipe)
 end
