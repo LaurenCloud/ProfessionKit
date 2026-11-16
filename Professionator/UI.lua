@@ -17,7 +17,8 @@ local recipeHorizontalPadding = 8
 local recipeRowHeight = 58
 local recipeRowGap = 6
 local recipeRowStride = recipeRowHeight + recipeRowGap
-local recipeSectionHeight = 14 + recipeRowGap
+local recipeSectionHeight = 18 + recipeRowGap
+local campingSectionGap = 8
 local materialRowHeight = 22 + padding * 2
 local materialRowStride = materialRowHeight + padding
 local professionRowHeight = 28 + padding * 2
@@ -267,8 +268,8 @@ function UI.Build()
     end)
     UI.recipeButtons = {}
     UI.recipeHeadings = {
-        Text(UI.list, "Recipes", recipeListWidth - padding * 2, padding, padding, 11, colors.muted),
-        Text(UI.list, "Camping", recipeListWidth - padding * 2, padding, padding, 11, colors.muted),
+        Text(UI.list, "Recipes", recipeListWidth - padding * 2, padding, padding, 13, colors.accent),
+        Text(UI.list, "Camping", recipeListWidth - padding * 2, padding, padding, 13, colors.accent),
     }
     for index = 1, maximumVisibleRecipes do
         local button = Button(UI.list, "", recipeListWidth - padding * 2, recipeRowHeight, padding, padding + (index - 1) * recipeRowStride, function(self)
@@ -535,7 +536,8 @@ function UI.RefreshList()
     UI.rows = Model.Select(state.recipes, state.query, state.sort, state.multiplyByQuantity)
     local hasCamping = #UI.rows > 0 and UI.rows[#UI.rows].isCamping
     local sectionCount = hasCamping and (UI.rows[1].isCamping and 1 or 2) or 0
-    UI.visibleRecipeCount = math.max(1, math.min(maximumVisibleRecipes, math.floor((availableListHeight - padding * 2 - sectionCount * recipeSectionHeight + recipeRowGap) / recipeRowStride)))
+    local sectionSpacing = sectionCount * recipeSectionHeight + (sectionCount == 2 and campingSectionGap or 0)
+    UI.visibleRecipeCount = math.max(1, math.min(maximumVisibleRecipes, math.floor((availableListHeight - padding * 2 - sectionSpacing + recipeRowGap) / recipeRowStride)))
     UI.offset = math.max(0, math.min(UI.offset or 0, math.max(0, #UI.rows - UI.visibleRecipeCount)))
     UI.skillSort:Active(state.sort == "skill")
     UI.priceSort:Active(state.sort == "auction")
@@ -553,6 +555,7 @@ function UI.RefreshList()
         if recipe then
             local section = recipe.isCamping and 2 or 1
             if hasCamping and section ~= previousSection then
+                if section == 2 and previousSection == 1 then rowTop = rowTop + campingSectionGap end
                 local heading = UI.recipeHeadings[section]
                 Place(heading, UI.list, padding, rowTop)
                 heading:Show()
