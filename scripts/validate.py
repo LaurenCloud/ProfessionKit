@@ -177,6 +177,7 @@ def main():
     runtime = load_addon()
     preferences_runtime = load_addon(replace_native=False)
     camping_runtime = load_addon()
+    recipe_ranking_runtime = load_addon()
     success = True
     error = None
     try:
@@ -187,6 +188,9 @@ def main():
         preferences_runtime.execute((PROJECT / "validation/preferences.lua").read_text(encoding="utf-8"))
         camping_runtime.execute((PROJECT / "validation/camping.lua").read_text(encoding="utf-8"))
         for check in plain(camping_runtime.globals().Harness.checks):
+            runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
+        recipe_ranking_runtime.execute((PROJECT / "validation/recipe_ranking.lua").read_text(encoding="utf-8"))
+        for check in plain(recipe_ranking_runtime.globals().Harness.checks):
             runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
         for open_from_menu in (False, True):
             first_open_runtime = load_addon()
@@ -220,7 +224,7 @@ def main():
     report["passed"] = success
     report["sourceHashes"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (PROJECT / "Professionator").iterdir() if path.is_file()}
     (arguments.output_directory / "integration-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    for session in (harness, preferences_runtime.globals().Harness, camping_runtime.globals().Harness):
+    for session in (harness, preferences_runtime.globals().Harness, camping_runtime.globals().Harness, recipe_ranking_runtime.globals().Harness):
         for name, scene in session.snapshots.items():
             converted = plain(scene)
             (arguments.output_directory / f"{name}.json").write_text(json.dumps(converted, indent=2, ensure_ascii=False), encoding="utf-8")

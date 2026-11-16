@@ -66,6 +66,7 @@ function Model.Select(recipes, query, filter, sort)
         if left.isCamping ~= right.isCamping then return not left.isCamping end
         local leftScore, rightScore = Score(left), Score(right)
         if leftScore == rightScore then
+            if left.available ~= right.available then return left.available > right.available end
             if left.name == right.name then return left.id < right.id end
             return left.name < right.name
         end

@@ -10,6 +10,7 @@ Open a profession normally, press **K**, use the professions menu button, click 
 
 - **Skill-ups** ranks the estimated skill gains from all crafts your current materials can supply.
 - **Prices** ranks the recorded auction value of that whole batch. Rows show total value and price per output item.
+- Equal scores sort by available craft quantity, highest first, then alphabetically. Quantity is green when materials are available and red at zero; recipe-name colors show skill-up difficulty separately.
 - **Have materials** filters to recipes you can currently craft. Search matches recipe names and categories.
 - **Camping** recipes appear in their own section below regular recipes in both sorts. Camping can be selected automatically when it is the only search/filter result.
 - Recipe details show owned/required materials, vendor purchase prices, auction prices, and the resulting item.

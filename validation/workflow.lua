@@ -154,10 +154,10 @@ local recipeButton, materialRow = UI.recipeButtons[1], UI.materialRows[1]
 local _, _, _, iconInset = recipeButton.icon:GetPoint()
 local _, _, _, materialInset = materialRow.icon:GetPoint()
 Check("Recipe and material tiles have equal horizontal and vertical icon padding", iconInset == (recipeButton:GetHeight() - recipeButton.icon:GetHeight()) / 2 and materialInset == (materialRow:GetHeight() - materialRow.icon:GetHeight()) / 2)
-Check("Short Mining list uses the requested single-line skillup label", recipeButton.name:GetText() == "[6] Smelt Copper (est. 3 skillups)")
+Check("Short Mining list uses the requested single-line skillup label", recipeButton.count:GetText() == "[6]" and recipeButton.name:GetText() == "Smelt Copper (est. 3 skillups)")
 harness.inventory[2770] = 9
 addon.Refresh()
-Check("Displayed skillups round down while ranking preserves fractions", recipeButton.name:GetText() == "[9] Smelt Copper (est. 4 skillups)" and UI.rows[1].skillEstimate == 4.5)
+Check("Displayed skillups round down while ranking preserves fractions", recipeButton.count:GetText() == "[9]" and recipeButton.name:GetText() == "Smelt Copper (est. 4 skillups)" and UI.rows[1].skillEstimate == 4.5)
 harness.inventory[2770] = 6
 addon.Refresh()
 harness.Snapshot("mining-short-list")

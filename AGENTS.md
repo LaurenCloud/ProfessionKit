@@ -10,6 +10,8 @@ Use equal horizontal and vertical padding: a shared 12-unit inset around panel c
 
 Camping recipes belong in a separate Camping section below regular recipes under both sorts. Default to the first regular recipe when available; camping can be selected automatically when it is the only search/filter result. Preserve explicit selections on refresh. Use the client's Camping category, not item-name guesses.
 
+Within each section, sort first by the selected full-precision score, then by available craft quantity descending, then by recipe name and ID. Unknown auction prices remain below known prices. Give the bracketed quantity its own color: green when materials are available, red at zero. Recipe-name color and native skill-up arrows represent skill difficulty independently. Keep the existing `est. N skillups` text; the user declined a separate `no skillups` label.
+
 Keep Blizzard's trade-skill session alive while hiding its visual window. Craft only on an explicit user click, revalidate profession, recipe, materials, requirements and combat at that moment. Never auto-buy, post or share messages. Preserve native window fallback.
 
 Craft through a direct C_TradeSkillUI.CraftRecipe(recipeID, count) call on the hardware-click path, matching the user's formerly installed ProfessionBuddy 2.1.1 Forever implementation. Do not wrap the action in pcall/xpcall or schedule it. Observe rejection via client events; only spellcast-start confirms crafting, and matching spellcast-success events complete a batch. Watchdog timers must be tied to their request and must never craft.

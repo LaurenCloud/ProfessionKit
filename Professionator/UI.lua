@@ -30,6 +30,7 @@ local colors = {
     panel = {0.65, 0.60, 0.51, 1}, inset = {0.34, 0.31, 0.27, 1},
     border = {0.56, 0.51, 0.40, 1}, text = {1, 0.97, 0.90},
     muted = {0.74, 0.70, 0.61}, accent = {1, 0.82, 0},
+    materialsAvailable = {0.49, 0.85, 0.47}, materialsMissing = {1, 0.38, 0.32},
 }
 local panelBackdrop = {
     bgFile = "Interface\\FrameGeneral\\UI-Background-Marble",
@@ -152,8 +153,10 @@ local function RecipeTooltip(button)
         if not recipe then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(recipe.name)
+        local availability = recipe.available > 0 and ("Materials for " .. recipe.available .. " crafts.") or "Missing materials."
+        GameTooltip:AddLine(availability, unpack(recipe.available > 0 and colors.materialsAvailable or colors.materialsMissing))
         GameTooltip:AddLine(Model.Difficulty(recipe).label .. " · est. " .. SkillEstimate(recipe) .. " skillups with available materials", 1, 0.82, 0, true)
-        GameTooltip:AddLine(recipe.available .. " crafts available. Skillup totals are estimates.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("Quantity color shows material availability. Recipe color and arrows show skill-up chance. Skillup totals are estimates.", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine("Auction value: " .. Model.Money(recipe.batchPrice) .. " total / " .. Model.Money(recipe.auction) .. " each", 1, 1, 1, true)
         GameTooltip:AddLine("Each is per output item; total uses all available crafts and minimum output quantity.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
@@ -277,10 +280,13 @@ function UI.Build()
         button.icon:SetPoint("LEFT", padding, 0)
         button.skillIcon = button:CreateTexture(nil, "ARTWORK")
         button.skillIcon:SetPoint("LEFT", 42, 0)
+        button.count = Text(button, "", 40, 66, padding, 12)
         button.name = Text(button, "", button:GetWidth() - 66 - padding, 66, padding, 12)
         button.value = Text(button, "", 190, 156, 12, 11, colors.muted)
+        CenterText(button.count, button, 66)
         CenterText(button.name, button, 66)
         CenterText(button.value, button, 156)
+        button.count:SetWordWrap(false)
         button.name:SetWordWrap(false)
         button.value:SetWordWrap(false)
         RecipeTooltip(button)
@@ -553,20 +559,26 @@ function UI.RefreshList()
             local atlas = recipe.canSkillUp and skillAtlases[recipe.difficulty]
             button.skillIcon:SetShown(not not atlas)
             if atlas then button.skillIcon:SetAtlas(atlas, true) end
-            local name = "[" .. recipe.available .. "] " .. recipe.name
+            local difficulty = Model.Difficulty(recipe)
+            button.count:SetText("[" .. recipe.available .. "]")
+            button.count:SetTextColor(unpack(recipe.available > 0 and colors.materialsAvailable or colors.materialsMissing))
+            local countWidth = button.count:GetStringWidth()
+            button.count:SetWidth(countWidth)
+            local nameLeft = 66 + countWidth + 4
+            CenterText(button.name, button, nameLeft)
             button.value:SetShown(state.sort == "auction")
             if state.sort == "skill" then
-                button.name:SetWidth(button:GetWidth() - 66 - padding)
-                button.name:SetText(name .. " (est. " .. SkillEstimate(recipe) .. " skillups)")
+                button.name:SetWidth(button:GetWidth() - nameLeft - padding)
+                button.name:SetText(recipe.name .. " (est. " .. SkillEstimate(recipe) .. " skillups)")
             else
                 button.value:SetText(Model.Money(recipe.batchPrice) .. " total / " .. Model.Money(recipe.auction) .. " each")
                 local valueWidth = math.min(160, button.value:GetStringWidth())
                 button.value:SetWidth(valueWidth)
                 CenterText(button.value, button, button:GetWidth() - padding - valueWidth)
-                button.name:SetWidth(math.max(40, button:GetWidth() - 66 - padding * 2 - valueWidth))
-                button.name:SetText(name)
+                button.name:SetWidth(math.max(40, button:GetWidth() - nameLeft - padding * 2 - valueWidth))
+                button.name:SetText(recipe.name)
             end
-            button.name:SetTextColor(unpack(Model.Difficulty(recipe).color))
+            button.name:SetTextColor(unpack(difficulty.color))
             button:Active(recipe == selected)
         end
     end
