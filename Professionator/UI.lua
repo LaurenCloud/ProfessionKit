@@ -31,6 +31,7 @@ local auctionColumn = 302
 local skillAtlases = {[0] = "Professions-Icon-Skill-High", [1] = "Professions-Icon-Skill-Medium", [2] = "Professions-Icon-Skill-Low"}
 local colors = {
     panel = {0.65, 0.60, 0.51, 1}, inset = {0.34, 0.31, 0.27, 1},
+    selected = {0.18, 0.18, 0.18, 1},
     border = {0.56, 0.51, 0.40, 1}, text = {1, 0.97, 0.90},
     muted = {0.74, 0.70, 0.61}, accent = {1, 0.82, 0},
     materialsAvailable = {0.49, 0.85, 0.47}, materialsMissing = {1, 0.38, 0.32},
@@ -41,12 +42,17 @@ local panelBackdrop = {
     tile = true, tileSize = 64, edgeSize = 12,
     insets = {left = 3, right = 3, top = 3, bottom = 3},
 }
+local selectedPanelBackdrop = {
+    bgFile = "Interface\\Buttons\\WHITE8X8",
+    edgeFile = panelBackdrop.edgeFile, edgeSize = panelBackdrop.edgeSize,
+    insets = panelBackdrop.insets,
+}
 
-local function Panel(parent, width, height, x, y, color)
+local function Panel(parent, width, height, x, y, color, backdrop)
     local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     frame:SetSize(width, height)
     frame:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
-    frame:SetBackdrop(panelBackdrop)
+    frame:SetBackdrop(backdrop or panelBackdrop)
     frame:SetBackdropColor(unpack(color or colors.panel))
     frame:SetBackdropBorderColor(unpack(colors.border))
     return frame
@@ -107,8 +113,9 @@ local function Button(parent, label, width, height, x, y, callback, style)
     button:SetScript("OnClick", callback)
     function button:Active(active)
         if isRow then
+            self:SetBackdrop(active and selectedPanelBackdrop or panelBackdrop)
             self:SetBackdropBorderColor(unpack(active and colors.accent or colors.border))
-            self:SetBackdropColor(unpack(active and colors.panel or colors.inset))
+            self:SetBackdropColor(unpack(active and colors.selected or colors.inset))
             self.label:SetTextColor(unpack(active and colors.accent or colors.text))
         else
             self:SetBackdropBorderColor(1, 0.82, 0, active and 1 or 0)
@@ -127,8 +134,8 @@ local function CreateTabConnector(button)
     local connector = CreateFrame("Frame", nil, button, "BackdropTemplate")
     connector:SetSize(12, button:GetHeight() - 6)
     connector:SetPoint("TOPRIGHT", button, "TOPRIGHT", 6, -3)
-    connector:SetBackdrop({bgFile = panelBackdrop.bgFile, tile = true, tileSize = 64})
-    connector:SetBackdropColor(unpack(colors.panel))
+    connector:SetBackdrop({bgFile = selectedPanelBackdrop.bgFile})
+    connector:SetBackdropColor(unpack(colors.selected))
     connector:Hide()
     return connector
 end
@@ -221,7 +228,7 @@ function UI.Build()
     UI.native = Button(frame, "Original window", 132, 22, windowWidth - 168, 2, function() addon.Native() end)
     frame:SetScript("OnHide", function() addon.Closed() end)
 
-    UI.workspace = Panel(frame, workspaceWidth, 450, navigationWidth + padding, workspaceTop)
+    UI.workspace = Panel(frame, workspaceWidth, 450, navigationWidth + padding, workspaceTop, colors.selected, selectedPanelBackdrop)
     UI.navigation = Panel(frame, navigationWidth, 450, padding, workspaceTop)
     Text(UI.navigation, "Professions", navigationWidth - padding * 2, padding, padding, 13, colors.accent)
     UI.professionButtons = {}
@@ -301,7 +308,7 @@ function UI.Build()
     end
     UI.listEmpty = Text(UI.list, "Open a profession to load recipes.", recipeListWidth - 32, 16, 16, 13, colors.muted)
     UI.listCount = Text(UI.workspace, "", recipeListWidth, 14, 620, 10, colors.muted)
-    UI.detail = Panel(UI.workspace, detailWidth, 366, recipeListWidth + padding * 2, padding)
+    UI.detail = Panel(UI.workspace, detailWidth, 366, recipeListWidth + padding * 2, padding, colors.selected, selectedPanelBackdrop)
     UI.outputIcon = UI.detail:CreateTexture(nil, "ARTWORK")
     UI.outputIcon:SetSize(38, 38)
     UI.outputIcon:SetPoint("TOPLEFT", 12, -12)
