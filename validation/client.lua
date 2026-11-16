@@ -90,6 +90,9 @@ end
 function methods:GetFontString() return self.nativeText end
 function methods:GetText() return self.text or "" end
 function methods:GetStringWidth()
+    return math.min(self:GetWidth(), self:GetUnboundedStringWidth())
+end
+function methods:GetUnboundedStringWidth()
     local text = self:GetText():gsub("|T.-|t", "..")
     return #text * (self.fontSize or 13) * 0.53
 end
@@ -299,7 +302,7 @@ C_TradeSkillUI = {
     GetRecipeRequirements = function(id) return harness.recipes[id].requirements end,
     GetRecipeCooldown = function(id) return harness.recipes[id].cooldown end,
     GetCraftableCount = function(id)
-        local available = 999
+        local available = math.huge
         for _, slot in ipairs(harness.recipes[id].schematic.reagentSlotSchematics) do
             available = math.min(available, math.floor((harness.inventory[slot.reagents[1].itemID] or 0) / slot.quantityRequired))
         end

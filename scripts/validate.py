@@ -181,6 +181,7 @@ def main():
     preferences_runtime = load_addon(replace_native=False)
     camping_runtime = load_addon()
     recipe_ranking_runtime = load_addon()
+    recipe_controls_runtime = load_addon(saved_variables={"replaceNative": True})
     background_runtime = load_addon()
     success = True
     error = None
@@ -191,14 +192,17 @@ def main():
         runtime.execute((PROJECT / "validation/craft_diagnostics.lua").read_text(encoding="utf-8"))
         preferences_runtime.execute((PROJECT / "validation/preferences.lua").read_text(encoding="utf-8"))
         camping_runtime.execute((PROJECT / "validation/camping.lua").read_text(encoding="utf-8"))
-        for check in plain(camping_runtime.globals().Harness.checks):
-            runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
         recipe_ranking_runtime.execute((PROJECT / "validation/recipe_ranking.lua").read_text(encoding="utf-8"))
-        for check in plain(recipe_ranking_runtime.globals().Harness.checks):
+        recipe_controls_runtime.execute((PROJECT / "validation/recipe_controls.lua").read_text(encoding="utf-8"))
+        quantity_reload_runtime = load_addon(saved_variables=plain(recipe_controls_runtime.globals().ProfessionatorDB))
+        quantity_reload_runtime.execute("""
+            Harness.Event("ADDON_LOADED", "Professionator")
+            ProfessionatorAddon.Open(186); Harness.Advance(1)
+            Harness.Check("Reload restores the unchecked quantity preference to state and UI", ProfessionatorAddon.state.multiplyByQuantity == false and not ProfessionatorAddon.UI.multiplyByQuantity:GetChecked())
+        """)
+        for check in plain(quantity_reload_runtime.globals().Harness.checks):
             runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
         background_runtime.execute((PROJECT / "validation/background_crafting.lua").read_text(encoding="utf-8"))
-        for check in plain(background_runtime.globals().Harness.checks):
-            runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
         for open_from_menu in (False, True):
             first_open_runtime = load_addon()
             first_open_runtime.globals().Harness.openFromMenu = open_from_menu
@@ -226,12 +230,15 @@ def main():
         error = str(exception)
     harness = runtime.globals().Harness
     report = plain(harness.result) if success else {"checks": plain(harness.checks), "error": error}
-    report["checks"].extend(plain(preferences_runtime.globals().Harness.checks))
+    # Include partial workflow results on failure so the report cannot say every
+    # check passed while omitting the session that actually failed.
+    for session in (preferences_runtime, camping_runtime, recipe_ranking_runtime, recipe_controls_runtime, background_runtime):
+        report["checks"].extend(plain(session.globals().Harness.checks))
     report["timestamp"] = datetime.now(timezone.utc).isoformat()
     report["passed"] = success
     report["sourceHashes"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (PROJECT / "Professionator").iterdir() if path.is_file()}
     (arguments.output_directory / "integration-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    for session in (harness, preferences_runtime.globals().Harness, camping_runtime.globals().Harness, recipe_ranking_runtime.globals().Harness):
+    for session in (harness, preferences_runtime.globals().Harness, camping_runtime.globals().Harness, recipe_ranking_runtime.globals().Harness, recipe_controls_runtime.globals().Harness):
         for name, scene in session.snapshots.items():
             converted = plain(scene)
             (arguments.output_directory / f"{name}.json").write_text(json.dumps(converted, indent=2, ensure_ascii=False), encoding="utf-8")

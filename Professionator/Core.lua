@@ -1,7 +1,7 @@
 local addonName, addon = ...
 local Client, UI, Model = addon.Client, addon.UI, addon.Model
-addon.version = "0.1.14"
-addon.state = { recipes = {}, query = "", filter = "all", sort = "skill", loading = false, crafting = false }
+addon.version = "0.1.15"
+addon.state = { recipes = {}, query = "", sort = "skill", multiplyByQuantity = true, loading = false, crafting = false }
 local state = addon.state
 local events = CreateFrame("Frame")
 local initialized, refreshPending, openGeneration = false, false, 0
@@ -309,6 +309,8 @@ local function Initialize()
     if ProfessionatorDB.replaceNative == nil then ProfessionatorDB.replaceNative = true end
     ProfessionatorDB.vendorPrices = ProfessionatorDB.vendorPrices or {}
     state.sort = ProfessionatorDB.sort == "auction" and "auction" or "skill"
+    if type(ProfessionatorDB.multiplyByQuantity) ~= "boolean" then ProfessionatorDB.multiplyByQuantity = true end
+    state.multiplyByQuantity = ProfessionatorDB.multiplyByQuantity
     initialized = true
     addon.Diagnostics.Initialize()
     BuildLauncher()
@@ -324,6 +326,7 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
     if not initialized then return end
     if event == "PLAYER_LOGOUT" then
         ProfessionatorDB.sort = state.sort
+        ProfessionatorDB.multiplyByQuantity = state.multiplyByQuantity
     elseif event == "TRADE_SKILL_SHOW" then
         addon.cancelledPendingOpen = false
         if ShouldReplaceNative() then ScheduleAdoption() end

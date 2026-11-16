@@ -8,11 +8,12 @@ Early development release. Targets Forever interface **16001** and the English c
 
 Open a profession normally, press **K**, use the professions menu button, click the minimap icon, or type `/professionator`.
 
-- **Skill-ups** ranks the estimated skill gains from all crafts your current materials can supply.
-- **Prices** ranks the recorded auction value of that whole batch. Rows show total value and price per output item.
+- **Skill-ups** ranks estimated skill gains; **Prices** ranks recorded auction value.
+- **× Quantity**, checked by default, ranks the whole craftable batch. Uncheck it to rank one craft's skill gain or output value, including every item that craft produces. The choice is remembered. Rows keep showing your available quantity, total skillup estimate, and total/each prices.
 - Equal scores sort by available craft quantity, highest first, then alphabetically. Quantity is green when materials are available and red at zero; recipe-name colors show skill-up difficulty separately.
-- **Have materials** filters to recipes you can currently craft. Search matches recipe names and categories.
-- **Camping** recipes appear in their own section below regular recipes in both sorts. Camping can be selected automatically when it is the only search/filter result.
+- Both skill-up estimates and total/each prices appear below the icon, quantity, and recipe name. The sort buttons only change ordering; both values stay visible.
+- All learned recipes remain visible unless excluded by the search, which matches recipe names and categories.
+- **Camping** recipes appear in their own section below regular recipes in both sorts. Camping can be selected automatically when it is the only search result.
 - Recipe details show owned/required materials, vendor purchase prices, auction prices, and the resulting item.
 - **Create** crafts the entered quantity; **Create all** uses the available quantity. Square **+ / −** buttons adjust the quantity. During confirmed crafting, a gold progress bar tracks the whole batch with remaining time in white on the bar. The batch count and estimated total time sit beside it. Timing follows the live cast when available.
 - Missing tools or stations replace the craft controls with a requirement such as **Requires: Forge**.
@@ -52,7 +53,7 @@ python scripts/validate.py --run
 python scripts/package.py --build
 ```
 
-Validation loads every addon Lua file and drives its actual UI/event callbacks with simulated frames, recipes, inventory, and prices. It covers cold opens, profession changes, sorting/filtering, camping sections, scrolling, missing data, crafting, timing, interrupted/blocked requests, native fallback, preferences, and reload persistence. It writes an inspectable report and layout previews under `artifacts/`. Previews approximate game artwork and use placeholder item icons; they are not game screenshots.
+Validation loads every addon Lua file and drives its actual UI/event callbacks with simulated frames, recipes, inventory, and prices. It covers cold opens, profession changes, ranking and search, camping sections, scrolling, missing data, crafting, timing, interrupted/blocked requests, native fallback, preferences, and reload persistence. It writes an inspectable report and layout previews under `artifacts/`. Previews approximate game artwork and use placeholder item icons; they are not game screenshots.
 
 For an optional read-only Auctionator replay, pass both `--auctionator-directory` and `--auctionator-settings` to `scripts/validate.py`, pointing to your installed addon directory and its saved `Auctionator.lua` file. No saved settings are bundled or committed.
 

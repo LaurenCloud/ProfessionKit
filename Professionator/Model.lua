@@ -46,21 +46,28 @@ function Model.PriceRecipe(recipe)
     local chance = ({ [0] = 1, [1] = 0.5, [2] = 0.2, [3] = 0 })[recipe.difficulty] or 0
     -- Cap the estimate at the recipe's gray threshold as well as the trained skill cap.
     -- Color alone cannot tell us the exact probability curve; the UI calls this an estimate.
+    recipe.skillPerCraft = recipe.canSkillUp and math.min(recipe.skillRoom or math.huge, recipe.skillUps * chance) or 0
     recipe.skillEstimate = recipe.canSkillUp and math.min(recipe.skillRoom or math.huge, recipe.available * recipe.skillUps * chance) or 0
 end
 
-function Model.Select(recipes, query, filter, sort)
+function Model.Select(recipes, query, sort, multiplyByQuantity)
     local rows = {}
     query = (query or ""):lower()
     for _, recipe in ipairs(recipes) do
         local matches = recipe.name:lower():find(query, 1, true) or recipe.category:lower():find(query, 1, true)
-        if matches and (filter ~= "craftable" or recipe.available > 0) then
+        if matches then
             rows[#rows + 1] = recipe
         end
     end
     local function Score(recipe)
-        if sort == "skill" then return recipe.skillEstimate end
-        if sort == "auction" then return recipe.batchPrice end
+        if sort == "skill" then
+            if multiplyByQuantity then return recipe.skillEstimate end
+            return recipe.skillPerCraft
+        end
+        if sort == "auction" then
+            if multiplyByQuantity then return recipe.batchPrice end
+            return recipe.auctionTotal
+        end
     end
     table.sort(rows, function(left, right)
         if left.isCamping ~= right.isCamping then return not left.isCamping end

@@ -13,7 +13,7 @@ UI.list:Run("OnMouseWheel", -30)
 harness.Check("Scrolling reveals a separate Camping heading", UI.recipeHeadings[2]:IsShown() and UI.recipeHeadings[2]:GetText() == "Camping")
 local _, _, _, _, firstRowTop = UI.recipeButtons[1]:GetPoint()
 local _, _, _, _, secondRowTop = UI.recipeButtons[2]:GetPoint()
-harness.Check("Recipe gaps are six units while tile padding stays unchanged", firstRowTop - secondRowTop - UI.recipeButtons[1]:GetHeight() == 6 and UI.recipeButtons[1]:GetHeight() == 46)
+harness.Check("Price rows have room for two lines while gaps stay six units", firstRowTop - secondRowTop - UI.recipeButtons[1]:GetHeight() == 6 and UI.recipeButtons[1]:GetHeight() == 58)
 local lastButton = UI.recipeButtons[UI.visibleRecipeCount]
 local _, _, _, _, lastRowTop = lastButton:GetPoint()
 harness.Check("Section headings and last recipe fit inside the list", UI.list:GetHeight() == -lastRowTop + lastButton:GetHeight() + 12 and UI.frame:GetHeight() <= UIParent:GetHeight() - 60)
@@ -29,8 +29,8 @@ harness.Check("Regular-only search removes the unused Camping heading", #UI.rows
 UI.search:SetText("no matches")
 harness.Check("Empty search hides both section headings and clears selection", #UI.rows == 0 and not UI.selectedRecipe and not UI.recipeHeadings[1]:IsShown() and not UI.recipeHeadings[2]:IsShown())
 UI.search:SetText("")
-UI.filter:Click()
-harness.Check("Have materials retains regular-first ordering", UI.rows[#UI.rows].isCamping and not UI.selectedRecipe.isCamping)
+UI.multiplyByQuantity:Click()
+harness.Check("Per-craft ranking retains regular-first ordering", UI.rows[#UI.rows].isCamping and not UI.selectedRecipe.isCamping)
 
 -- Reproduce the zero-Copper, craftable-Lodestone case.
 harness.Item(279960, "Lodestone", 0, 0, 2000)
@@ -38,13 +38,12 @@ harness.Item(2835, "Rough Stone", 2, 7, 3)
 harness.Recipe(1230161, 186, "Lodestone", 279960, 3, 25, 1, {{2835, 1}, {2840, 1}}, 2717)
 harness.recipes[2659], harness.recipes[3304] = nil, nil
 harness.inventory[2770] = 0
-addon.state.filter = "all"
 addon.Open(186); harness.Advance(1)
 harness.Check("Unavailable Copper remains the default above craftable camping gear", UI.rows[1].id == 2657 and UI.rows[2].id == 1230161 and UI.rows[2].available == 7 and UI.selectedRecipe.id == 2657)
 harness.Snapshot("mining-camping-section")
-UI.filter:Click()
-harness.Check("A camping-only materials filter selects its first recipe", #UI.rows == 1 and UI.selectedRecipe.id == 1230161)
-UI.filter:Click()
+UI.search:SetText("Lodestone")
+harness.Check("A camping-only recipe search selects its first recipe", #UI.rows == 1 and UI.selectedRecipe.id == 1230161)
+UI.search:SetText("")
 addon.state.selected = nil; UI.RefreshList()
 harness.Check("Restoring mixed results defaults back to regular crafting", UI.selectedRecipe.id == 2657)
 UI.skillSort:Click()

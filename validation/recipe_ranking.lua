@@ -29,11 +29,11 @@ harness.Check("Craftable quantity is green while zero quantity is red", copper.c
     and tin.count:GetText() == "[0]" and tin.count.textColor[1] > tin.count.textColor[2])
 harness.Check("Gray names retain difficulty color independently of quantity", copper.name.textColor[1] == tin.name.textColor[1] and copper.name.textColor[2] == tin.name.textColor[2]
     and not copper.skillIcon:IsShown() and not tin.skillIcon:IsShown())
-harness.Check("Existing skillup wording stays intact", copper.name:GetText() == "Smelt Copper (est. 0 skillups)" and tin.name:GetText() == "Smelt Tin (est. 0 skillups)")
+harness.Check("Existing skillup wording stays intact in the recipe summary", copper.summary:GetText():find("est. 0 skillups", 1, true) and tin.summary:GetText():find("est. 0 skillups", 1, true))
 harness.Snapshot("mining-gray-quantities")
-UI.filter:Click()
-harness.Check("Have materials keeps the craftable gray recipe", #UI.rows == 1 and UI.rows[1].id == 2657)
-UI.filter:Click()
+UI.multiplyByQuantity:Click()
+harness.Check("Disabling quantity weighting keeps unavailable recipes visible", #UI.rows == 4 and UI.rows[1].id == 2657)
+UI.multiplyByQuantity:Click()
 
 harness.recipes[3304].info.relativeDifficulty, harness.recipes[3304].info.canSkillUp = 0, true
 addon.Refresh()

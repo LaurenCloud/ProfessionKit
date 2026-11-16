@@ -2,7 +2,7 @@ local _, addon = ...
 local Model = addon.Model
 addon.UI = {}
 local UI = addon.UI
--- Use the same inset on every side; row heights follow their content plus that inset.
+-- Panels share an inset; recipe tiles use narrower sides to leave room for names.
 local padding = 12
 local navigationWidth = 164
 local recipeListWidth = 354
@@ -13,7 +13,8 @@ local workspaceTop = 24 + padding
 local recipeListTop = 124
 local materialsTop = 88
 local maximumVisibleRecipes = 12
-local recipeRowHeight = 22 + padding * 2
+local recipeHorizontalPadding = 8
+local recipeRowHeight = 58
 local recipeRowGap = 6
 local recipeRowStride = recipeRowHeight + recipeRowGap
 local recipeSectionHeight = 14 + recipeRowGap
@@ -137,9 +138,9 @@ local function Place(frame, parent, x, y)
     frame:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
 end
 
-local function CenterText(text, parent, x)
+local function CenterText(text, parent, x, verticalOffset)
     text:ClearAllPoints()
-    text:SetPoint("LEFT", parent, "LEFT", x, 0)
+    text:SetPoint("LEFT", parent, "LEFT", x, verticalOffset or 0)
     text:SetHeight(16)
 end
 
@@ -245,19 +246,19 @@ function UI.Build()
     Text(UI.workspace, "Sort", 28, padding, 91, 11, colors.muted)
     UI.skillSort = Button(UI.workspace, "Skill-ups", 78, 28, 44, 84, function() addon.state.sort = "skill"; UI.offset = 0; UI.RefreshList() end, "row")
     UI.priceSort = Button(UI.workspace, "Prices", 62, 28, 128, 84, function() addon.state.sort = "auction"; UI.offset = 0; UI.RefreshList() end, "row")
-    Hint(UI.skillSort, "Skill-ups from your materials", "Estimated batch skill gains. Ranking weights: orange 1, yellow 0.5, green 0.2 per craft. These are estimates, not measured probabilities. Capped by your trained skill limit and the recipe's gray threshold when known. Chances decline as you level. Recalculates after crafting.")
-    Hint(UI.priceSort, "Auction value of your craftable batch", "Crafts available × items produced × recorded auction price. Uses minimum output for variable yields. This is gross listing value, not profit or guaranteed sales. Missing prices sort last.")
-    UI.filter = CreateFrame("CheckButton", nil, UI.workspace, "UICheckButtonTemplate")
-    UI.filter:SetSize(24, 24)
-    UI.filter:SetPoint("TOPLEFT", 208, -86)
-    UI.filter:SetHitRectInsets(0, -132, 0, 0)
-    Text(UI.workspace, "Have materials", 132, 234, 91, 11)
-    UI.filter:SetScript("OnClick", function(self)
-        addon.state.filter = self:GetChecked() and "craftable" or "all"
+    Hint(UI.skillSort, "Estimated skill-ups", "Ranks one craft, or all available crafts when × Quantity is checked. Ranking weights: orange 1, yellow 0.5, green 0.2 per craft. These are estimates, not measured probabilities. Capped by your trained skill limit and the recipe's gray threshold when known. Row estimates always show the total from your available materials.")
+    Hint(UI.priceSort, "Auction value", "Ranks the outputs of one craft, or all available crafts when × Quantity is checked. Uses minimum output for variable yields. This is gross listing value, not profit or guaranteed sales. Row totals always use your available materials; each is per output item. Missing prices sort last.")
+    UI.multiplyByQuantity = CreateFrame("CheckButton", nil, UI.workspace, "UICheckButtonTemplate")
+    UI.multiplyByQuantity:SetSize(24, 24)
+    UI.multiplyByQuantity:SetPoint("TOPLEFT", 208, -86)
+    UI.multiplyByQuantity:SetHitRectInsets(0, -108, 0, 0)
+    Text(UI.workspace, "× Quantity", 108, 234, 91, 11)
+    UI.multiplyByQuantity:SetScript("OnClick", function(self)
+        addon.state.multiplyByQuantity = self:GetChecked()
         UI.offset = 0
         UI.RefreshList()
     end)
-    Hint(UI.filter, "Filter: have materials", "Checked: recipes you can make with your materials. Unchecked: all learned recipes.")
+    Hint(UI.multiplyByQuantity, "Multiply ranking by quantity", "Checked: rank the full batch your materials can supply. Unchecked: rank one craft, including all items it produces. All learned recipes stay visible. Tied scores still sort by available quantity. Counts and row totals continue to describe your available materials.")
     UI.list = Panel(UI.workspace, recipeListWidth, 490, padding, recipeListTop, colors.inset)
     UI.list:EnableMouseWheel(true)
     UI.list:SetScript("OnMouseWheel", function(_, delta)
@@ -277,18 +278,14 @@ function UI.Build()
         button.label:Hide()
         button.icon = button:CreateTexture(nil, "ARTWORK")
         button.icon:SetSize(22, 22)
-        button.icon:SetPoint("LEFT", padding, 0)
+        button.icon:SetPoint("LEFT", recipeHorizontalPadding, 10)
         button.skillIcon = button:CreateTexture(nil, "ARTWORK")
-        button.skillIcon:SetPoint("LEFT", 42, 0)
-        button.count = Text(button, "", 40, 66, padding, 12)
-        button.name = Text(button, "", button:GetWidth() - 66 - padding, 66, padding, 12)
-        button.value = Text(button, "", 190, 156, 12, 11, colors.muted)
-        CenterText(button.count, button, 66)
-        CenterText(button.name, button, 66)
-        CenterText(button.value, button, 156)
+        button.count = Text(button, "", 40, 0, 0, 12)
+        button.name = Text(button, "", 250, 0, 0, 12)
+        button.summary = Text(button, "", button:GetWidth() - recipeHorizontalPadding * 2, 0, 0, 11, colors.muted)
         button.count:SetWordWrap(false)
         button.name:SetWordWrap(false)
-        button.value:SetWordWrap(false)
+        button.summary:SetWordWrap(false)
         RecipeTooltip(button)
         UI.recipeButtons[index] = button
     end
@@ -535,14 +532,14 @@ function UI.RefreshList()
     local state = addon.state
     -- Scroll long lists sooner on smaller displays instead of shrinking every font.
     local availableListHeight = UIParent:GetHeight() - 60 - workspaceTop - padding * 3 - recipeListTop - 26
-    UI.rows = Model.Select(state.recipes, state.query, state.filter, state.sort)
+    UI.rows = Model.Select(state.recipes, state.query, state.sort, state.multiplyByQuantity)
     local hasCamping = #UI.rows > 0 and UI.rows[#UI.rows].isCamping
     local sectionCount = hasCamping and (UI.rows[1].isCamping and 1 or 2) or 0
     UI.visibleRecipeCount = math.max(1, math.min(maximumVisibleRecipes, math.floor((availableListHeight - padding * 2 - sectionCount * recipeSectionHeight + recipeRowGap) / recipeRowStride)))
     UI.offset = math.max(0, math.min(UI.offset or 0, math.max(0, #UI.rows - UI.visibleRecipeCount)))
     UI.skillSort:Active(state.sort == "skill")
     UI.priceSort:Active(state.sort == "auction")
-    UI.filter:SetChecked(state.filter == "craftable")
+    UI.multiplyByQuantity:SetChecked(state.multiplyByQuantity)
     local selected
     for _, recipe in ipairs(UI.rows) do if recipe.id == state.selected then selected = recipe end end
     -- Regular recipes sort first; camping may be selected automatically when it is the only result.
@@ -563,38 +560,39 @@ function UI.RefreshList()
             end
             previousSection = section
             Place(button, UI.list, padding, rowTop)
+            button:SetHeight(recipeRowHeight)
             rowTop = rowTop + recipeRowStride
             button.recipe = recipe
             button.icon:SetTexture(recipe.icon or 134400)
             local atlas = recipe.canSkillUp and skillAtlases[recipe.difficulty]
             button.skillIcon:SetShown(not not atlas)
             if atlas then button.skillIcon:SetAtlas(atlas, true) end
+            local contentLeft = recipeHorizontalPadding + button.icon:GetWidth() + 6
+            local textOffset = 10
+            button.skillIcon:ClearAllPoints()
+            button.skillIcon:SetPoint("LEFT", button, "LEFT", contentLeft, textOffset)
+            local countLeft = contentLeft + (atlas and button.skillIcon:GetWidth() + 4 or 0)
             local difficulty = Model.Difficulty(recipe)
             button.count:SetText("[" .. recipe.available .. "]")
             button.count:SetTextColor(unpack(recipe.available > 0 and colors.materialsAvailable or colors.materialsMissing))
-            local countWidth = button.count:GetStringWidth()
+            -- Measure the full text, not the previously constrained rendered width.
+            -- Round up and leave a small allowance so brackets never become ellipses.
+            local countWidth = math.ceil(button.count:GetUnboundedStringWidth()) + 2
             button.count:SetWidth(countWidth)
-            local nameLeft = 66 + countWidth + 4
-            CenterText(button.name, button, nameLeft)
-            button.value:SetShown(state.sort == "auction")
-            if state.sort == "skill" then
-                button.name:SetWidth(button:GetWidth() - nameLeft - padding)
-                button.name:SetText(recipe.name .. " (est. " .. SkillEstimate(recipe) .. " skillups)")
-            else
-                button.value:SetText(Model.Money(recipe.batchPrice) .. " total / " .. Model.Money(recipe.auction) .. " each")
-                local valueWidth = math.min(160, button.value:GetStringWidth())
-                button.value:SetWidth(valueWidth)
-                CenterText(button.value, button, button:GetWidth() - padding - valueWidth)
-                button.name:SetWidth(math.max(40, button:GetWidth() - nameLeft - padding * 2 - valueWidth))
-                button.name:SetText(recipe.name)
-            end
+            CenterText(button.count, button, countLeft, textOffset)
+            local nameLeft = countLeft + countWidth + 4
+            CenterText(button.name, button, nameLeft, textOffset)
+            button.name:SetWidth(button:GetWidth() - nameLeft - recipeHorizontalPadding)
+            button.name:SetText(recipe.name)
+            button.summary:SetText("est. " .. SkillEstimate(recipe) .. " skillups · " .. Model.Money(recipe.batchPrice) .. " total / " .. Model.Money(recipe.auction) .. " each")
+            CenterText(button.summary, button, recipeHorizontalPadding, -10)
             button.name:SetTextColor(unpack(difficulty.color))
             button:Active(recipe == selected)
         end
     end
     UI.recipeContentHeight = #UI.rows > 0 and rowTop - recipeRowGap + padding or 74
     UI.listEmpty:SetShown(#UI.rows == 0)
-    UI.listEmpty:SetText(state.loading and "Loading recipes…" or (#state.recipes == 0 and "No crafting recipes here. Gathering journals are available in the original window." or "No recipes match. Try clearing the search or filter."))
+    UI.listEmpty:SetText(state.loading and "Loading recipes…" or (#state.recipes == 0 and "No crafting recipes here. Gathering journals are available in the original window." or "No recipes match. Try clearing the search."))
     UI.listCount:SetText((UI.offset + 1) .. "–" .. math.min(#UI.rows, UI.offset + UI.visibleRecipeCount) .. " of " .. #UI.rows)
     UI.Detail(selected)
 end

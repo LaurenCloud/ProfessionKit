@@ -9,7 +9,7 @@ harness.Check("Quantity controls are square with centered readable symbols", UI.
 UI.plus:Click(); harness.Check("Plus still increases the requested quantity", UI.quantity:GetText() == "4")
 UI.minus:Click(); harness.Check("Minus still decreases the requested quantity", UI.quantity:GetText() == "3")
 harness.Check("Recipe tiles use native item or recipe icons", UI.recipeButtons[1].icon.texture == UI.recipeButtons[1].recipe.icon)
-harness.Check("Compact search is separate from sort and checkbox filter", UI.search.background:GetHeight() == 28 and UI.filter.kind == "CheckButton")
+harness.Check("Compact search is separate from sort and the quantity modifier", UI.search.background:GetHeight() == 28 and UI.multiplyByQuantity.kind == "CheckButton")
 local _, _, _, _, ageTop = UI.market:GetPoint()
 harness.Check("AH age sits in the header and cost/margin text is removed", ageTop == -14 and UI.cost == nil and UI.market:GetText() == "AH prices\n1 day old")
 

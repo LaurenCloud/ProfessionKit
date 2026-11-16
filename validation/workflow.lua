@@ -53,11 +53,11 @@ harness.inventory[2320] = 0
 -- Deliberately click before the bag-update event: the click must re-read inventory.
 UI.create:Click()
 Check("Stale displayed inventory cannot trigger a craft", #harness.crafts == 1 and not UI.create.enabled)
-UI.filter:Click()
-Check("Have materials filter excludes recipes without thread", #UI.rows == 1 and UI.rows[1].name == "Bolt of Linen Cloth")
+UI.multiplyByQuantity:Click()
+Check("Quantity weighting never hides recipes without thread", #UI.rows == 13 and not addon.state.multiplyByQuantity)
 harness.inventory[2320] = originalThreadCount
 harness.Event("BAG_UPDATE_DELAYED"); harness.Advance(0.2)
-UI.filter:Click(); Select(3755)
+UI.multiplyByQuantity:Click(); Select(3755)
 harness.combat = true; harness.Event("PLAYER_REGEN_DISABLED"); harness.Advance(0.2)
 Check("Combat disables craft controls", not UI.create.enabled and not UI.createAll.enabled)
 harness.combat = false; harness.Event("PLAYER_REGEN_ENABLED"); harness.Advance(0.2)
@@ -153,11 +153,11 @@ addon.Open(186); harness.Advance(1)
 local recipeButton, materialRow = UI.recipeButtons[1], UI.materialRows[1]
 local _, _, _, iconInset = recipeButton.icon:GetPoint()
 local _, _, _, materialInset = materialRow.icon:GetPoint()
-Check("Recipe and material tiles have equal horizontal and vertical icon padding", iconInset == (recipeButton:GetHeight() - recipeButton.icon:GetHeight()) / 2 and materialInset == (materialRow:GetHeight() - materialRow.icon:GetHeight()) / 2)
-Check("Short Mining list uses the requested single-line skillup label", recipeButton.count:GetText() == "[6]" and recipeButton.name:GetText() == "Smelt Copper (est. 3 skillups)")
+Check("Recipe tiles use narrower sides and more vertical room; material padding stays balanced", iconInset == 8 and recipeButton:GetHeight() == 58 and materialInset == (materialRow:GetHeight() - materialRow.icon:GetHeight()) / 2)
+Check("Short Mining list puts the skillup estimate below its name and quantity", recipeButton.count:GetText() == "[6]" and recipeButton.name:GetText() == "Smelt Copper" and recipeButton.summary:GetText():find("est. 3 skillups", 1, true))
 harness.inventory[2770] = 9
 addon.Refresh()
-Check("Displayed skillups round down while ranking preserves fractions", recipeButton.count:GetText() == "[9]" and recipeButton.name:GetText() == "Smelt Copper (est. 4 skillups)" and UI.rows[1].skillEstimate == 4.5)
+Check("Displayed skillups round down while ranking preserves fractions", recipeButton.count:GetText() == "[9]" and recipeButton.summary:GetText():find("est. 4 skillups", 1, true) and UI.rows[1].skillEstimate == 4.5)
 harness.inventory[2770] = 6
 addon.Refresh()
 harness.Snapshot("mining-short-list")
