@@ -1,6 +1,6 @@
 local addonName, addon = ...
 local Client, UI, Model = addon.Client, addon.UI, addon.Model
-addon.version = "0.1.11"
+addon.version = "0.1.12"
 addon.state = { recipes = {}, query = "", filter = "all", sort = "skill", loading = false, crafting = false }
 local state = addon.state
 local events = CreateFrame("Frame")
