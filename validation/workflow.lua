@@ -154,10 +154,10 @@ local recipeButton, materialRow = UI.recipeButtons[1], UI.materialRows[1]
 local _, _, _, iconInset = recipeButton.icon:GetPoint()
 local _, _, _, materialInset = materialRow.icon:GetPoint()
 Check("Recipe tiles use narrower sides and more vertical room; material padding stays balanced", iconInset == 8 and recipeButton:GetHeight() == 58 and materialInset == (materialRow:GetHeight() - materialRow.icon:GetHeight()) / 2)
-Check("Short Mining list puts the skillup estimate below its name and quantity", recipeButton.count:GetText() == "[6]" and recipeButton.name:GetText() == "Smelt Copper" and recipeButton.summary:GetText():find("est. 3 skillups", 1, true))
+Check("Short Mining list puts the skillup estimate below its name and quantity", recipeButton.count:GetText() == "[6]" and recipeButton.name:GetText() == "Smelt Copper" and recipeButton.skillEstimate:GetText() == "est. 3 skillups")
 harness.inventory[2770] = 9
 addon.Refresh()
-Check("Displayed skillups round down while ranking preserves fractions", recipeButton.count:GetText() == "[9]" and recipeButton.summary:GetText():find("est. 4 skillups", 1, true) and UI.rows[1].skillEstimate == 4.5)
+Check("Displayed skillups round down while ranking preserves fractions", recipeButton.count:GetText() == "[9]" and recipeButton.skillEstimate:GetText() == "est. 4 skillups" and UI.rows[1].skillEstimate == 4.5)
 harness.inventory[2770] = 6
 addon.Refresh()
 harness.Snapshot("mining-short-list")

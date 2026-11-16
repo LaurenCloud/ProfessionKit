@@ -21,6 +21,11 @@ harness.Snapshot("tailoring-camping-section")
 lastButton:Click()
 addon.Refresh()
 harness.Check("Explicit camping selection survives inventory refresh", UI.selectedRecipe.id == 1229504)
+harness.Snapshot("tailoring-connected-camping")
+UI.list:Run("OnMouseWheel", 30)
+local visibleConnectors = 0
+for _, button in ipairs(UI.recipeButtons) do if button.connector:IsVisible() then visibleConnectors = visibleConnectors + 1 end end
+harness.Check("Scrolling the selected recipe away hides its connector and preserves details", visibleConnectors == 0 and UI.selectedRecipe.id == 1229504)
 UI.search:SetText("Camping")
 addon.state.selected = nil; UI.RefreshList()
 harness.Check("Camping-only search automatically selects its first recipe", #UI.rows == 1 and UI.selectedRecipe.id == 1229504 and UI.recipeHeadings[2]:IsShown() and not UI.recipeHeadings[1]:IsShown())

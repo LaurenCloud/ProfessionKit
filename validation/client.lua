@@ -28,6 +28,9 @@ function CreateFrame(kind, name, parent, template)
         frame.ScrollBar = Widget("Frame", nil, frame)
     elseif template == "UICheckButtonTemplate" then
         frame.backgroundColor, frame.borderColor = {0.12, 0.10, 0.08}, {0.55, 0.49, 0.37}
+    elseif template and template:find("UIPanelSquareButton", 1, true) then
+        frame.backgroundColor, frame.borderColor = {0.22, 0.22, 0.22}, {0.65, 0.65, 0.65}
+        frame.icon = Widget("Texture", nil, frame)
     elseif template and template:find("UIPanelButtonTemplate", 1, true) then
         frame.backgroundColor, frame.borderColor = {0.39, 0.055, 0.045}, {0.55, 0.49, 0.37}
         frame.nativeText = Widget("FontString", nil, frame)

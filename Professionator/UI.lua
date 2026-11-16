@@ -14,6 +14,7 @@ local recipeListTop = 124
 local materialsTop = 88
 local maximumVisibleRecipes = 12
 local recipeHorizontalPadding = 8
+local recipeTileWidth = recipeListWidth - padding * 2
 local recipeRowHeight = 58
 local recipeRowGap = 6
 local recipeRowStride = recipeRowHeight + recipeRowGap
@@ -74,7 +75,9 @@ end
 
 local function Button(parent, label, width, height, x, y, callback, style)
     local isRow = style == "row"
-    local button = CreateFrame("Button", nil, parent, isRow and "BackdropTemplate" or "UIPanelButtonTemplate,BackdropTemplate")
+    local isQuantity = style == "quantity"
+    local template = isRow and "BackdropTemplate" or (isQuantity and "UIPanelSquareButton,BackdropTemplate" or "UIPanelButtonTemplate,BackdropTemplate")
+    local button = CreateFrame("Button", nil, parent, template)
     button:SetSize(width, height)
     button:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -y)
     if isRow then
@@ -84,21 +87,20 @@ local function Button(parent, label, width, height, x, y, callback, style)
         button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
         button.label = Text(button, label, width - 12, 6, (height - 14) / 2, 13)
         button.label:SetJustifyH("CENTER")
+    elseif isQuantity then
+        -- Square artwork keeps its proportions; the ordinary red button uses
+        -- wide-button textures that look squeezed at this width.
+        button.icon:Hide()
+        button.label = Text(button, label, 24, 0, 0, 18, colors.accent)
+        button.label:ClearAllPoints()
+        button.label:SetPoint("CENTER", button, "CENTER", 0, 0)
+        button.label:SetHeight(22)
+        button.label:SetJustifyH("CENTER")
+        button.label:SetWordWrap(false)
     else
         -- Retain Blizzard's red button art, pressed/disabled states and font behavior.
         button:SetText(label)
         button.label = button:GetFontString()
-        if style == "quantity" then
-            -- The native text anchors squeeze symbols on narrow buttons. Use a
-            -- centered, fixed-size glyph while keeping the native button artwork.
-            button:SetText("")
-            button.label = Text(button, label, 24, 0, 0, 18, colors.accent)
-            button.label:ClearAllPoints()
-            button.label:SetPoint("CENTER", button, "CENTER", 0, 0)
-            button.label:SetHeight(22)
-            button.label:SetJustifyH("CENTER")
-            button.label:SetWordWrap(false)
-        end
         button:SetBackdrop({edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12})
         button:SetBackdropBorderColor(1, 0.82, 0, 0)
     end
@@ -118,6 +120,17 @@ local function Button(parent, label, width, height, x, y, callback, style)
         self:SetAlpha(available and 1 or 0.4)
     end
     return button
+end
+
+local function CreateTabConnector(button)
+    -- Cover the tab's right edge and the adjacent content panel's left border.
+    local connector = CreateFrame("Frame", nil, button, "BackdropTemplate")
+    connector:SetSize(12, button:GetHeight() - 6)
+    connector:SetPoint("TOPRIGHT", button, "TOPRIGHT", 6, -3)
+    connector:SetBackdrop({bgFile = panelBackdrop.bgFile, tile = true, tileSize = 64})
+    connector:SetBackdropColor(unpack(colors.panel))
+    connector:Hide()
+    return connector
 end
 
 local function Edit(parent, width, height, x, y, inset)
@@ -223,14 +236,7 @@ function UI.Build()
         button.label:SetWordWrap(false)
         button.label:SetJustifyH("LEFT")
         button.rank = Text(button, "", navigationWidth - padding * 3 - 48, 48, padding + 18, 10, colors.muted)
-        -- The selected vertical tab extends through the shared edge into the content panel.
-        -- Its bridge covers both right-hand tab edging and the panel's left border.
-        button.connector = CreateFrame("Frame", nil, button, "BackdropTemplate")
-        button.connector:SetSize(12, professionRowHeight - 6)
-        button.connector:SetPoint("TOPRIGHT", button, "TOPRIGHT", 6, -3)
-        button.connector:SetBackdrop({bgFile = panelBackdrop.bgFile, tile = true, tileSize = 64})
-        button.connector:SetBackdropColor(unpack(colors.panel))
-        button.connector:Hide()
+        button.connector = CreateTabConnector(button)
         UI.professionButtons[index] = button
     end
     UI.title = Text(UI.workspace, "Choose a profession", recipeListWidth - 110, padding, padding, 21, colors.accent)
@@ -272,7 +278,7 @@ function UI.Build()
         Text(UI.list, "Camping", recipeListWidth - padding * 2, padding, padding, 13, colors.accent),
     }
     for index = 1, maximumVisibleRecipes do
-        local button = Button(UI.list, "", recipeListWidth - padding * 2, recipeRowHeight, padding, padding + (index - 1) * recipeRowStride, function(self)
+        local button = Button(UI.list, "", recipeTileWidth, recipeRowHeight, padding, padding + (index - 1) * recipeRowStride, function(self)
             addon.state.selected = self.recipe.id
             UI.RefreshList()
         end, "row")
@@ -283,10 +289,13 @@ function UI.Build()
         button.skillIcon = button:CreateTexture(nil, "ARTWORK")
         button.count = Text(button, "", 40, 0, 0, 12)
         button.name = Text(button, "", 250, 0, 0, 12)
-        button.summary = Text(button, "", button:GetWidth() - recipeHorizontalPadding * 2, 0, 0, 11, colors.muted)
+        button.skillEstimate = Text(button, "", 100, 0, 0, 11, colors.muted)
+        button.prices = Text(button, "", 200, 0, 0, 11, colors.muted)
+        button.prices:SetJustifyH("RIGHT")
         button.count:SetWordWrap(false)
         button.name:SetWordWrap(false)
-        button.summary:SetWordWrap(false)
+        button.skillEstimate:SetWordWrap(false)
+        button.prices:SetWordWrap(false)
         RecipeTooltip(button)
         UI.recipeButtons[index] = button
     end
@@ -361,6 +370,7 @@ function UI.Build()
         UI.RefreshCraftProgress()
     end)
     Hint(UI.craftProgress, "Batch progress", "Estimated progress through the entire batch, including the current craft. Uses the same live cast timing as the remaining-time estimate.")
+    for _, button in ipairs(UI.recipeButtons) do button.connector = CreateTabConnector(button) end
 end
 
 function UI.MakeItemRow(parent, x, y)
@@ -456,6 +466,8 @@ function UI.Layout(recipe)
     UI.craftStatus:SetWidth(detailWidth - statusLeft - padding)
     local statusHeight = progressVisible and 28 or 14
     local detailHeight = statusTop + (UI.craftStatus:GetText() ~= "" and statusHeight + padding or 0)
+    -- Keep the detail panel behind a selected tab near the bottom of a long list.
+    detailHeight = math.max(detailHeight, UI.selectedRecipeBottom or 0)
     UI.detail:SetHeight(detailHeight)
 
     local listHeight = UI.recipeContentHeight or 74
@@ -547,6 +559,7 @@ function UI.RefreshList()
     -- Regular recipes sort first; camping may be selected automatically when it is the only result.
     selected = selected or UI.rows[1]
     state.selected = selected and selected.id or nil
+    UI.selectedRecipeBottom = nil
     for _, heading in ipairs(UI.recipeHeadings) do heading:Hide() end
     local rowTop, previousSection = padding, nil
     for index, button in ipairs(UI.recipeButtons) do
@@ -565,6 +578,11 @@ function UI.RefreshList()
             Place(button, UI.list, padding, rowTop)
             button:SetHeight(recipeRowHeight)
             rowTop = rowTop + recipeRowStride
+            local isSelected = recipe == selected
+            -- Extend only the tab background; text columns stay aligned across rows.
+            button:SetWidth(recipeTileWidth + (isSelected and padding * 2 or 0))
+            button.connector:SetShown(isSelected)
+            if isSelected then UI.selectedRecipeBottom = recipeListTop + rowTop - recipeRowGap end
             button.recipe = recipe
             button.icon:SetTexture(recipe.icon or 134400)
             local atlas = recipe.canSkillUp and skillAtlases[recipe.difficulty]
@@ -585,12 +603,17 @@ function UI.RefreshList()
             CenterText(button.count, button, countLeft, textOffset)
             local nameLeft = countLeft + countWidth + 4
             CenterText(button.name, button, nameLeft, textOffset)
-            button.name:SetWidth(button:GetWidth() - nameLeft - recipeHorizontalPadding)
+            button.name:SetWidth(recipeTileWidth - nameLeft - recipeHorizontalPadding)
             button.name:SetText(recipe.name)
-            button.summary:SetText("est. " .. SkillEstimate(recipe) .. " skillups · " .. Model.Money(recipe.batchPrice) .. " total / " .. Model.Money(recipe.auction) .. " each")
-            CenterText(button.summary, button, recipeHorizontalPadding, -10)
+            button.skillEstimate:SetText("est. " .. SkillEstimate(recipe) .. " skillups")
+            button.skillEstimate:SetWidth(math.ceil(button.skillEstimate:GetUnboundedStringWidth()) + 2)
+            CenterText(button.skillEstimate, button, recipeHorizontalPadding, -10)
+            local pricesLeft = recipeHorizontalPadding + button.skillEstimate:GetWidth() + padding
+            button.prices:SetText(Model.Money(recipe.batchPrice) .. " total / " .. Model.Money(recipe.auction) .. " each")
+            button.prices:SetWidth(recipeTileWidth - pricesLeft - recipeHorizontalPadding)
+            CenterText(button.prices, button, pricesLeft, -10)
             button.name:SetTextColor(unpack(difficulty.color))
-            button:Active(recipe == selected)
+            button:Active(isSelected)
         end
     end
     UI.recipeContentHeight = #UI.rows > 0 and rowTop - recipeRowGap + padding or 74

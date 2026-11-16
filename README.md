@@ -11,7 +11,7 @@ Open a profession normally, press **K**, use the professions menu button, click 
 - **Skill-ups** ranks estimated skill gains; **Prices** ranks recorded auction value.
 - **× Quantity**, checked by default, ranks the whole craftable batch. Uncheck it to rank one craft's skill gain or output value, including every item that craft produces. The choice is remembered. Rows keep showing your available quantity, total skillup estimate, and total/each prices.
 - Equal scores sort by available craft quantity, highest first, then alphabetically. Quantity is green when materials are available and red at zero; recipe-name colors show skill-up difficulty separately.
-- Both skill-up estimates and total/each prices appear below the icon, quantity, and recipe name. The sort buttons only change ordering; both values stay visible.
+- Skill-up estimates align left and total/each prices align right below the icon, quantity, and recipe name. The selected recipe connects to its detail panel like a tab. The sort buttons only change ordering; both values stay visible.
 - All learned recipes remain visible unless excluded by the search, which matches recipe names and categories.
 - **Camping** recipes appear in their own section below regular recipes in both sorts. Camping can be selected automatically when it is the only search result.
 - Recipe details show owned/required materials, vendor purchase prices, auction prices, and the resulting item.

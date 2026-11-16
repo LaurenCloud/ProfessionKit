@@ -2,7 +2,7 @@
 ## Title: Professionator
 ## Notes: A professions window with recipe rankings, material prices and batch crafting.
 ## Author: Lauren
-## Version: 0.1.16
+## Version: 0.1.17
 ## X-License: MIT
 ## SavedVariables: ProfessionatorDB
 ## OptionalDeps: Auctionator
