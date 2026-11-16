@@ -7,20 +7,20 @@ harness.blockCraft = true
 UI.create:Click()
 harness.blockCraft = false
 harness.Check("Blocked action ends the request immediately", not addon.state.crafting and addon.state.craftRequest == nil
-    and UI.craftStatus:GetText() == "WoW blocked crafting. Use Original window.")
+    and UI.recipeStatus:GetText() == "WoW blocked crafting. Use Original window.")
 for _, frame in ipairs(harness.frames) do if frame.scripts.OnUpdate then frame:Run("OnUpdate", 1.1) end end
 harness.Advance(0.2)
-harness.Check("Blocked-action explanation survives routine refresh", UI.craftStatus:GetText() == "WoW blocked crafting. Use Original window.")
+harness.Check("Blocked-action explanation survives routine refresh", UI.recipeStatus:GetText() == "WoW blocked crafting. Use Original window.")
 
 harness.silentCraft = true
 UI.create:Click()
 harness.Check("Unacknowledged request says Starting instead of Crafting", UI.craftStatus:GetText() == "Starting craft…")
-harness.Check("Unacknowledged request cannot show simulated crafting progress", not UI.craftProgress:IsShown())
+harness.Check("Unacknowledged request shows its panel without simulated progress", UI.craftingPanel:IsVisible() and not UI.craftProgress:IsShown())
 harness.Event("UNIT_SPELLCAST_FAILED", "player", "unrelated", 999)
 harness.Check("Unrelated player spells do not stop the craft request", addon.state.crafting)
 harness.Advance(3.2)
 harness.Check("No-response timeout explains failure and unlocks controls", UI.create.enabled and not addon.state.crafting
-    and UI.craftStatus:GetText() == "Craft did not start. Try Original window.")
+    and UI.recipeStatus:GetText() == "Craft did not start. Try Original window.")
 harness.silentCraft = false
 
 UI.quantity:SetText("3")
@@ -50,7 +50,7 @@ UI.quantity:SetText("1")
 UI.create:Click()
 harness.casting = false
 harness.Event("UNIT_SPELLCAST_INTERRUPTED", "player", "interrupted-cast", 2657)
-harness.Check("Movement cancellation clears only the tracked craft", not addon.state.crafting and UI.craftStatus:GetText() == "Crafting interrupted.")
+harness.Check("Movement cancellation clears only the tracked craft", not addon.state.crafting and UI.recipeStatus:GetText() == "Crafting interrupted.")
 UI.create:Click()
 local request = addon.state.craftRequest
 harness.Advance(2.2)

@@ -228,7 +228,7 @@ function addon.Craft(all)
         return
     end
     state.craftFailure = nil
-    local request = {recipeID = recipe.id, count = count, remaining = count, started = false, lastActivity = GetTime(), castSeconds = recipe.castSeconds}
+    local request = {recipeID = recipe.id, recipeName = recipe.name, icon = recipe.icon, count = count, remaining = count, started = false, lastActivity = GetTime(), castSeconds = recipe.castSeconds}
     state.craftRequest = request
     state.crafting = true
     WatchCraft(request)

@@ -46,11 +46,11 @@ harness.Event("UNIT_SPELLCAST_START", "player", "next-cast", 2657)
 harness.Check("A new cast clears the pending idle observation", request.idleSince == nil)
 harness.casting = false
 harness.Event("UNIT_SPELLCAST_INTERRUPTED", "player", "cancelled-cast", 2657)
-harness.Check("A real interruption still clears progress immediately", not addon.state.crafting and not UI.craftProgress:IsShown() and UI.craftStatus:GetText() == "Crafting interrupted.")
+harness.Check("A real interruption still clears progress immediately", not addon.state.crafting and not UI.craftProgress:IsShown() and UI.recipeStatus:GetText() == "Crafting interrupted.")
 
 UI.create:Click(); harness.casting = false
 harness.Advance(6.2)
-harness.Check("Repeated idle observations still release a genuinely stalled batch", not addon.state.crafting and UI.craftStatus:GetText() == "Crafting stopped." and UI.create.enabled)
+harness.Check("Repeated idle observations still release a genuinely stalled batch", not addon.state.crafting and UI.recipeStatus:GetText() == "Crafting stopped." and UI.create.enabled)
 local timeout
 for _, entry in ipairs(ProfessionatorDB.craftDiagnostics.entries) do if entry.kind == "craft-idle-timeout" then timeout = entry end end
 harness.Check("Idle-stop diagnostics include both queue state and observation duration", timeout and timeout.details.queuedCrafts == 0 and timeout.details.idleSeconds >= 3)

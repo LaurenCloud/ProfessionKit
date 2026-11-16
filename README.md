@@ -15,7 +15,7 @@ Open a profession normally, press **K**, use the professions menu button, click 
 - All learned recipes remain visible unless excluded by the search, which matches recipe names and categories.
 - **Camping** recipes appear in their own section below regular recipes in both sorts. Camping can be selected automatically when it is the only search result.
 - Recipe details show owned/required materials, vendor purchase prices, auction prices, and the resulting item.
-- **Create** crafts the entered quantity; **Create all** uses the available quantity. Square **+ / −** buttons adjust the quantity. During confirmed crafting, a gold progress bar tracks the whole batch with remaining time in white on the bar. The batch count and estimated total time sit beside it. Timing follows the live cast when available.
+- **Create** crafts the entered quantity; **Create all** uses the available quantity. Square **+ / −** buttons adjust the quantity. Active crafting stays in a separate bottom-right panel while you browse recipes. A gold progress bar shows remaining time in white, with batch count and estimated total time beside it. The active recipe's name and icon appear when you select a different recipe. Timing follows the live cast when available.
 - Missing tools or stations replace the craft controls with a requirement such as **Requires: Forge**.
 
 Right-click the minimap icon to configure **Replace the normal professions window**, enabled by default. Left-click always opens Professionator. **Original window**, or `/professionator native`, opens Blizzard's window for the current session.

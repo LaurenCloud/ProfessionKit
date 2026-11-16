@@ -62,7 +62,7 @@ harness.combat = true; harness.Event("PLAYER_REGEN_DISABLED"); harness.Advance(0
 Check("Combat disables craft controls", not UI.create.enabled and not UI.createAll.enabled)
 harness.combat = false; harness.Event("PLAYER_REGEN_ENABLED"); harness.Advance(0.2)
 harness.rejectCraft = true; UI.create:Click()
-Check("Rejected client craft unlocks controls with reason", not addon.state.crafting and UI.craftStatus:GetText():find("rejected"))
+Check("Rejected client craft unlocks controls with reason", not addon.state.crafting and UI.recipeStatus:GetText():find("rejected"))
 harness.rejectCraft = false
 
 harness.showNativeBeforeReady = true
@@ -78,7 +78,7 @@ Check("Skill estimate cannot exceed gray threshold", UI.selectedRecipe.skillEsti
 harness.recipes[2657].requirements[1].met = false
 for _, frame in ipairs(harness.frames) do if frame.scripts.OnUpdate then frame:Run("OnUpdate", 1.1) end end
 Check("Walking away from forge disables crafting", not UI.create.enabled)
-Check("Missing forge replaces crafting controls once", not UI.create:IsShown() and not UI.createAll:IsShown() and UI.requirements:IsShown() and UI.requirements:GetText() == "Requires: Forge" and UI.craftStatus:GetText() == "")
+Check("Missing forge replaces crafting controls once", not UI.create:IsShown() and not UI.createAll:IsShown() and UI.requirements:IsShown() and UI.requirements:GetText() == "Requires: Forge" and UI.recipeStatus:GetText() == "")
 harness.Snapshot("mining-away-from-forge")
 harness.recipes[2657].requirements[1].met = true
 harness.inventory[3576] = 4

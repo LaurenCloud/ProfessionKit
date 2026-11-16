@@ -26,12 +26,14 @@ local professionRowHeight = 28 + padding * 2
 local professionRowStride = professionRowHeight + padding
 local professionListTop = 16 + padding * 2
 local controlHeight = 16 + padding * 2
+local craftProgressHeight = 28
+local craftIdentityHeight = 28
 local vendorColumn = 214
 local auctionColumn = 302
 local skillAtlases = {[0] = "Professions-Icon-Skill-High", [1] = "Professions-Icon-Skill-Medium", [2] = "Professions-Icon-Skill-Low"}
 local colors = {
     panel = {0.65, 0.60, 0.51, 1}, inset = {0.34, 0.31, 0.27, 1},
-    selected = {0.18, 0.18, 0.18, 1},
+    selected = {0.055, 0.055, 0.055, 1},
     border = {0.56, 0.51, 0.40, 1}, text = {1, 0.97, 0.90},
     muted = {0.74, 0.70, 0.61}, accent = {1, 0.82, 0},
     materialsAvailable = {0.49, 0.85, 0.47}, materialsMissing = {1, 0.38, 0.32},
@@ -351,9 +353,19 @@ function UI.Build()
     UI.quantity:SetText("1")
     UI.quantity:SetScript("OnTextChanged", function() addon.state.craftFailure = nil; UI.RefreshCraftButtons() end)
     UI.plus = Button(UI.detail, "+", controlHeight, controlHeight, 354, 248, function() UI.SetQuantity((tonumber(UI.quantity:GetText()) or 1) + 1) end, "quantity")
-    UI.craftStatus = Text(UI.detail, "", detailWidth - padding * 2, padding, 286, 11, colors.muted)
-    UI.craftProgress = CreateFrame("StatusBar", nil, UI.detail, "BackdropTemplate")
-    UI.craftProgress:SetSize(116, 28)
+    UI.recipeStatus = Text(UI.detail, "", detailWidth - padding * 2, padding, 286, 11, colors.muted)
+    UI.craftingPanel = Panel(UI.workspace, detailWidth, craftProgressHeight + padding * 2, 0, 0)
+    UI.craftingPanel:ClearAllPoints()
+    UI.craftingPanel:SetPoint("BOTTOMRIGHT", UI.workspace, "BOTTOMRIGHT", -padding, padding)
+    UI.craftingPanel:Hide()
+    UI.craftIcon = UI.craftingPanel:CreateTexture(nil, "ARTWORK")
+    UI.craftIcon:SetSize(22, 22)
+    UI.craftIcon:SetPoint("TOPLEFT", padding, -padding)
+    UI.craftName = Text(UI.craftingPanel, "", detailWidth - padding * 2 - 28, padding + 28, padding + 4, 12, colors.accent)
+    UI.craftName:SetWordWrap(false)
+    UI.craftStatus = Text(UI.craftingPanel, "", detailWidth - padding * 2, padding, padding, 11, colors.text)
+    UI.craftProgress = CreateFrame("StatusBar", nil, UI.craftingPanel, "BackdropTemplate")
+    UI.craftProgress:SetSize(116, craftProgressHeight)
     UI.craftProgress:SetBackdrop(panelBackdrop)
     UI.craftProgress:SetBackdropColor(0.08, 0.06, 0.03, 1)
     UI.craftProgress:SetBackdropBorderColor(unpack(colors.border))
@@ -466,13 +478,8 @@ function UI.Layout(recipe)
     Place(UI.plus, UI.detail, 354, controlsTop)
     Place(UI.requirements, UI.detail, padding, controlsTop + padding)
     local statusTop = controlsTop + controlHeight + padding
-    local progressVisible = UI.craftProgress:IsShown()
-    local statusLeft = progressVisible and (padding + UI.craftProgress:GetWidth() + padding) or padding
-    local statusHeight = progressVisible and math.max(28, UI.craftProgress:GetHeight()) or 14
-    Place(UI.craftProgress, UI.detail, padding, statusTop + (statusHeight - UI.craftProgress:GetHeight()) / 2)
-    Place(UI.craftStatus, UI.detail, statusLeft, statusTop)
-    UI.craftStatus:SetWidth(detailWidth - statusLeft - padding)
-    local detailHeight = statusTop + (UI.craftStatus:GetText() ~= "" and statusHeight + padding or 0)
+    Place(UI.recipeStatus, UI.detail, padding, statusTop)
+    local detailHeight = statusTop + (UI.recipeStatus:GetText() ~= "" and 14 + padding or 0)
     -- Keep the detail panel behind a selected tab near the bottom of a long list.
     detailHeight = math.max(detailHeight, UI.selectedRecipeBottom or 0)
     UI.detail:SetHeight(detailHeight)
@@ -483,7 +490,8 @@ function UI.Layout(recipe)
     UI.listCount:SetShown(#(UI.rows or {}) > UI.visibleRecipeCount)
     local listBottom = recipeListTop + listHeight + padding + (#(UI.rows or {}) > UI.visibleRecipeCount and 14 + padding or 0)
     local navigationBottom = professionListTop + (UI.professionCount or 0) * professionRowStride
-    local workspaceHeight = math.max(210, detailHeight + padding * 2, listBottom, navigationBottom)
+    local craftingHeight = UI.craftingPanel:IsShown() and UI.craftingPanel:GetHeight() + padding or 0
+    local workspaceHeight = math.max(210, detailHeight + padding * 2 + craftingHeight, listBottom, navigationBottom)
     UI.workspace:SetHeight(workspaceHeight)
     UI.navigation:SetHeight(workspaceHeight)
     local windowHeight = workspaceHeight + workspaceTop + padding
@@ -513,8 +521,43 @@ function UI.RefreshCraftProgress()
     end
 end
 
+function UI.RefreshCraftPanel(recipe)
+    local request = addon.state.craftRequest
+    local status, progress, remainingText = "", nil, nil
+    if request then status, progress, remainingText = CraftStatus(request) end
+    local showCraftName = request ~= nil and (recipe == nil or recipe.id ~= request.recipeID)
+    UI.craftingPanel:SetShown(request ~= nil)
+    UI.craftName:SetShown(showCraftName)
+    UI.craftIcon:SetShown(showCraftName)
+    UI.craftName:SetText(showCraftName and request.recipeName or "")
+    UI.craftIcon:SetTexture(request and request.icon or nil)
+    UI.craftProgress:SetShown(progress ~= nil)
+    UI.craftProgress:SetValue(progress or 0)
+    UI.craftRemaining:SetText(remainingText or "")
+    UI.craftStatus:SetText(status)
+
+    local progressTop = padding + (showCraftName and craftIdentityHeight or 0)
+    local statusLeft = progress ~= nil and padding + UI.craftProgress:GetWidth() + padding or padding
+    Place(UI.craftProgress, UI.craftingPanel, padding, progressTop)
+    Place(UI.craftStatus, UI.craftingPanel, statusLeft, progressTop + (progress == nil and 7 or 0))
+    UI.craftStatus:SetWidth(detailWidth - statusLeft - padding)
+    UI.craftingPanel:SetHeight(progressTop + UI.craftProgress:GetHeight() + padding)
+end
+
+local function VisibleRecipeCount(rows)
+    local availableHeight = UIParent:GetHeight() - 60 - workspaceTop - padding * 3 - recipeListTop - 26
+    -- Reserve the larger batch panel while crafting so changing selection does
+    -- not change list capacity or shrink the whole window on smaller screens.
+    if addon.state.craftRequest then availableHeight = availableHeight - (craftProgressHeight + craftIdentityHeight + padding * 3) end
+    local hasCamping = #rows > 0 and rows[#rows].isCamping
+    local sectionCount = hasCamping and (rows[1].isCamping and 1 or 2) or 0
+    local sectionSpacing = sectionCount * recipeSectionHeight + (sectionCount == 2 and campingSectionGap or 0)
+    return math.max(1, math.min(maximumVisibleRecipes, math.floor((availableHeight - padding * 2 - sectionSpacing + recipeRowGap) / recipeRowStride)))
+end
+
 function UI.RefreshCraftButtons()
     if not UI.create then return end
+    if UI.rows and UI.visibleRecipeCount ~= VisibleRecipeCount(UI.rows) then UI.RefreshList(); return end
     local recipe = UI.selectedRecipe
     local current = addon.Client.OpenInfo()
     local count = tonumber(UI.quantity:GetText()) or 0
@@ -534,29 +577,20 @@ function UI.RefreshCraftButtons()
     if reason and reason:match("^Requires:") then reason = nil end
     local request, failure = addon.state.craftRequest, addon.state.craftFailure
     local status = failure and recipe and failure.recipeID == recipe.id and failure.message or reason or ""
-    local progress, remainingText
-    if request then
-        status, progress, remainingText = CraftStatus(request)
-    elseif status == "" and recipe and recipe.castSeconds and recipe.available > 0 then
+    if not request and status == "" and recipe and recipe.castSeconds and recipe.available > 0 then
         status = "Create all: est. " .. Model.Duration(recipe.castSeconds * recipe.available) .. " total"
     end
-    UI.craftProgress:SetShown(controlsVisible and progress ~= nil)
-    UI.craftProgress:SetValue(progress or 0)
-    UI.craftRemaining:SetText(remainingText or "")
-    UI.craftStatus:SetText(controlsVisible and status or "")
+    UI.recipeStatus:SetText(controlsVisible and status or "")
+    UI.RefreshCraftPanel(recipe)
     UI.Layout(recipe)
 end
 
 function UI.RefreshList()
     if not UI.frame then return end
     local state = addon.state
-    -- Scroll long lists sooner on smaller displays instead of shrinking every font.
-    local availableListHeight = UIParent:GetHeight() - 60 - workspaceTop - padding * 3 - recipeListTop - 26
     UI.rows = Model.Select(state.recipes, state.query, state.sort, state.multiplyByQuantity)
     local hasCamping = #UI.rows > 0 and UI.rows[#UI.rows].isCamping
-    local sectionCount = hasCamping and (UI.rows[1].isCamping and 1 or 2) or 0
-    local sectionSpacing = sectionCount * recipeSectionHeight + (sectionCount == 2 and campingSectionGap or 0)
-    UI.visibleRecipeCount = math.max(1, math.min(maximumVisibleRecipes, math.floor((availableListHeight - padding * 2 - sectionSpacing + recipeRowGap) / recipeRowStride)))
+    UI.visibleRecipeCount = VisibleRecipeCount(UI.rows)
     UI.offset = math.max(0, math.min(UI.offset or 0, math.max(0, #UI.rows - UI.visibleRecipeCount)))
     UI.skillSort:Active(state.sort == "skill")
     UI.priceSort:Active(state.sort == "auction")
