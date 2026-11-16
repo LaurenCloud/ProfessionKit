@@ -353,7 +353,7 @@ function UI.Build()
     UI.plus = Button(UI.detail, "+", controlHeight, controlHeight, 354, 248, function() UI.SetQuantity((tonumber(UI.quantity:GetText()) or 1) + 1) end, "quantity")
     UI.craftStatus = Text(UI.detail, "", detailWidth - padding * 2, padding, 286, 11, colors.muted)
     UI.craftProgress = CreateFrame("StatusBar", nil, UI.detail, "BackdropTemplate")
-    UI.craftProgress:SetSize(116, 16)
+    UI.craftProgress:SetSize(116, 28)
     UI.craftProgress:SetBackdrop(panelBackdrop)
     UI.craftProgress:SetBackdropColor(0.08, 0.06, 0.03, 1)
     UI.craftProgress:SetBackdropBorderColor(unpack(colors.border))
@@ -468,10 +468,10 @@ function UI.Layout(recipe)
     local statusTop = controlsTop + controlHeight + padding
     local progressVisible = UI.craftProgress:IsShown()
     local statusLeft = progressVisible and (padding + UI.craftProgress:GetWidth() + padding) or padding
-    Place(UI.craftProgress, UI.detail, padding, statusTop + 5)
+    local statusHeight = progressVisible and math.max(28, UI.craftProgress:GetHeight()) or 14
+    Place(UI.craftProgress, UI.detail, padding, statusTop + (statusHeight - UI.craftProgress:GetHeight()) / 2)
     Place(UI.craftStatus, UI.detail, statusLeft, statusTop)
     UI.craftStatus:SetWidth(detailWidth - statusLeft - padding)
-    local statusHeight = progressVisible and 28 or 14
     local detailHeight = statusTop + (UI.craftStatus:GetText() ~= "" and statusHeight + padding or 0)
     -- Keep the detail panel behind a selected tab near the bottom of a long list.
     detailHeight = math.max(detailHeight, UI.selectedRecipeBottom or 0)
