@@ -84,14 +84,23 @@ function Model.Select(recipes, query, sort, multiplyByQuantity)
     return rows
 end
 
+function Model.MaximumCraftCount(recipe)
+    if not recipe then return 0 end
+    return math.min(recipe.available, recipe.charges or math.huge, recipe.canCreateMultiple and 99999 or 1)
+end
+
 function Model.CraftAllowed(recipe, count, currentProfessionID, selectedProfessionID, inCombat)
     if inCombat then return false, "Crafting is unavailable during combat." end
     if currentProfessionID ~= selectedProfessionID then return false, "Wait for this profession to finish loading." end
     if not recipe or not recipe.learned then return false, "Select a learned recipe." end
     if recipe.unsupported then return false, "This recipe needs the original crafting window." end
+    if recipe.disabled then return false, recipe.disabledReason and recipe.disabledReason ~= "" and recipe.disabledReason or "This recipe is currently unavailable." end
     if count < 1 or count ~= math.floor(count) then return false, "Enter a whole number of crafts." end
+    if recipe.cooldown and recipe.cooldown > 0 then return false, "Cooldown: " .. Model.Duration(recipe.cooldown) .. " remaining" end
+    if recipe.charges == 0 then return false, "No recipe charges available." end
+    if not recipe.canCreateMultiple and count > 1 then return false, "This recipe can only be crafted one at a time." end
+    if recipe.charges and count > recipe.charges then return false, "Only " .. recipe.charges .. " recipe charges available." end
     if count > recipe.available then return false, "Not enough available materials." end
-    if recipe.cooldown and recipe.cooldown > 0 then return false, "This recipe is on cooldown." end
     for _, requirement in ipairs(recipe.requirements) do
         if not requirement.met then return false, "Requires: " .. requirement.name end
     end

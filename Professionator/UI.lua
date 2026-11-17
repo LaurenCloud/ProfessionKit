@@ -246,6 +246,15 @@ function UI.Build()
         button.label:SetJustifyH("LEFT")
         button.rank = Text(button, "", navigationWidth - padding * 3 - 48, 48, padding + 18, 10, colors.muted)
         button.connector = CreateTabConnector(button)
+        button.station = CreateFrame("Frame", nil, button, "BackdropTemplate")
+        button.station:SetSize(20, 20)
+        button.station:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -padding, 5)
+        button.station:SetBackdrop({edgeFile = panelBackdrop.edgeFile, edgeSize = 8})
+        button.station:EnableMouse(true)
+        button.station.icon = button.station:CreateTexture(nil, "ARTWORK")
+        button.station.icon:SetSize(16, 16)
+        button.station.icon:SetPoint("CENTER", button.station, "CENTER", 0, 0)
+        button.station:Hide()
         UI.professionButtons[index] = button
     end
     UI.title = Text(UI.workspace, "Choose a profession", recipeListWidth - 110, padding, padding, 21, colors.accent)
@@ -344,6 +353,29 @@ function UI.Build()
     UI.vendorHeading = Text(UI.detail, "Vendor sell", 76, vendorColumn, 152, 11, colors.muted)
     UI.auctionHeading = Text(UI.detail, "Auction", 80, auctionColumn, 152, 11, colors.muted)
     UI.outputRow = UI.MakeItemRow(UI.detail, 12, 168)
+    UI.targetPanel = Panel(UI.detail, detailWidth - padding * 2, 74, padding, 168)
+    UI.targetSlot = Button(UI.targetPanel, "", 46, 46, 8, 8, function(_, mouseButton)
+        if addon.state.crafting or InCombatLockdown() then return end
+        if mouseButton == "RightButton" then addon.Targets.Clear()
+        elseif C_Cursor and C_Cursor.GetCursorItem and C_Cursor.GetCursorItem() then addon.Targets.Drop(UI.selectedRecipe)
+        else OpenAllBags() end
+        UI.Detail(UI.selectedRecipe)
+    end, "row")
+    UI.targetSlot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    UI.targetSlot:SetScript("OnReceiveDrag", function()
+        addon.Targets.Drop(UI.selectedRecipe)
+        UI.Detail(UI.selectedRecipe)
+    end)
+    UI.targetIcon = UI.targetSlot:CreateTexture(nil, "ARTWORK")
+    UI.targetIcon:SetSize(38, 38)
+    UI.targetIcon:SetPoint("CENTER", UI.targetSlot, "CENTER", 0, 0)
+    UI.targetName = Text(UI.targetPanel, "", detailWidth - 96, 62, 10, 12, colors.text)
+    UI.targetName:SetWordWrap(false)
+    UI.targetHint = Text(UI.targetPanel, "Click slot to open bags.\nDrag an item here.", 196, 62, 32, 10, colors.muted)
+    UI.equipped = Button(UI.targetPanel, "Equipped…", 88, 26, detailWidth - padding * 3 - 88, 40, function() UI.ToggleEquippedPicker() end)
+    UI.enchantEffect = Text(UI.detail, "", detailWidth - padding * 2, padding, 250, 12, colors.text)
+    UI.targetPanel:Hide()
+    UI.enchantEffect:Hide()
     UI.createAll = Button(UI.detail, "Create all", 120, controlHeight, padding, 248, function() addon.Craft(true) end)
     UI.create = Button(UI.detail, "Create", 82, controlHeight, 144, 248, function() addon.Craft(false) end)
     UI.minus = Button(UI.detail, "−", controlHeight, controlHeight, 238, 248, function() UI.SetQuantity((tonumber(UI.quantity:GetText()) or 1) - 1) end, "quantity")
@@ -468,11 +500,19 @@ function UI.Layout(recipe)
     Place(UI.vendorHeading, UI.detail, vendorColumn, outputHeadingTop)
     Place(UI.auctionHeading, UI.detail, auctionColumn, outputHeadingTop)
     Place(UI.outputRow, UI.detail, padding, outputHeadingTop + 14 + padding)
+    Place(UI.targetPanel, UI.detail, padding, outputHeadingTop + 14 + padding)
     local hasAge = recipe and recipe.auction and recipe.age ~= nil
     UI.market:SetShown(not not hasAge)
     local controlsTop = outputHeadingTop + 14 + padding + materialRowHeight + padding
+    if recipe and recipe.isEnchant then
+        local effectTop = outputHeadingTop + 14 + padding + UI.targetPanel:GetHeight() + padding
+        Place(UI.enchantEffect, UI.detail, padding, effectTop)
+        local effectHeight = math.min(84, math.max(28, UI.enchantEffect:GetStringHeight()))
+        UI.enchantEffect:SetHeight(effectHeight)
+        controlsTop = effectTop + effectHeight + padding
+    end
     Place(UI.createAll, UI.detail, padding, controlsTop)
-    Place(UI.create, UI.detail, 144, controlsTop)
+    Place(UI.create, UI.detail, recipe and not recipe.canCreateMultiple and padding or 144, controlsTop)
     Place(UI.minus, UI.detail, 238, controlsTop)
     Place(UI.quantity.background, UI.detail, 290, controlsTop)
     Place(UI.plus, UI.detail, 354, controlsTop)
@@ -500,7 +540,7 @@ function UI.Layout(recipe)
 end
 
 local function CraftStatus(request)
-    if not request.started then return "Starting craft…", nil end
+    if not request.started then return request.isEnchant and addon.Targets.ConfirmationVisible() and "Confirm the enchant in WoW's dialog." or "Starting craft…", nil end
     local status = "Crafting " .. (request.count - request.remaining + 1) .. "/" .. request.count
     local totalSeconds, remainingSeconds = Model.BatchTiming(request, GetTime())
     if totalSeconds and totalSeconds > 0 and remainingSeconds then
@@ -560,27 +600,34 @@ function UI.RefreshCraftButtons()
     if UI.rows and UI.visibleRecipeCount ~= VisibleRecipeCount(UI.rows) then UI.RefreshList(); return end
     local recipe = UI.selectedRecipe
     local current = addon.Client.OpenInfo()
-    local count = tonumber(UI.quantity:GetText()) or 0
+    local count = recipe and not recipe.canCreateMultiple and 1 or tonumber(UI.quantity:GetText()) or 0
     local valid, reason = Model.CraftAllowed(recipe, count, current and current.professionID, addon.state.professionID, InCombatLockdown())
+    if valid then valid, reason = addon.Targets.Validate(recipe) end
     UI.create:Available(valid and not addon.state.crafting)
-    local allValid = Model.CraftAllowed(recipe, recipe and recipe.available or 0, current and current.professionID, addon.state.professionID, InCombatLockdown())
+    UI.create.label:SetText(recipe and recipe.isEnchant and "Enchant" or "Create")
+    local batchCount = Model.MaximumCraftCount(recipe)
+    local allValid = recipe and recipe.canCreateMultiple and Model.CraftAllowed(recipe, batchCount, current and current.professionID, addon.state.professionID, InCombatLockdown())
     UI.createAll:Available(allValid and not addon.state.crafting)
-    UI.createAll.label:SetText("Create all [" .. (recipe and recipe.available or 0) .. "]")
+    UI.createAll.label:SetText("Create all [" .. batchCount .. "]")
     local missing = {}
     for _, requirement in ipairs(recipe and recipe.requirements or {}) do
         if not requirement.met then missing[#missing + 1] = requirement.name end
     end
-    local controlsVisible = #missing == 0
-    for _, control in ipairs({UI.createAll, UI.create, UI.minus, UI.quantity.background, UI.plus}) do control:SetShown(controlsVisible) end
-    UI.requirements:SetShown(not controlsVisible)
-    UI.requirements:SetText(not controlsVisible and ("Requires: " .. table.concat(missing, ", ")) or "")
+    local controlsVisible = #missing == 0 and recipe ~= nil and not recipe.unsupported
+    UI.create:SetShown(controlsVisible)
+    for _, control in ipairs({UI.createAll, UI.minus, UI.quantity.background, UI.plus}) do control:SetShown(controlsVisible and recipe.canCreateMultiple) end
+    UI.requirements:SetShown(#missing > 0)
+    UI.requirements:SetText(#missing > 0 and ("Requires: " .. table.concat(missing, ", ")) or "")
     if reason and reason:match("^Requires:") then reason = nil end
     local request, failure = addon.state.craftRequest, addon.state.craftFailure
     local status = failure and recipe and failure.recipeID == recipe.id and failure.message or reason or ""
-    if not request and status == "" and recipe and recipe.castSeconds and recipe.available > 0 then
-        status = "Create all: est. " .. Model.Duration(recipe.castSeconds * recipe.available) .. " total"
+    if not request and status == "" and recipe and recipe.castSeconds and batchCount > 0 then
+        status = (recipe.canCreateMultiple and "Create all: est. " or "Est. ") .. Model.Duration(recipe.castSeconds * batchCount) .. " total"
+        if recipe.charges then status = status .. " · " .. recipe.charges .. " charges available" end
     end
-    UI.recipeStatus:SetText(controlsVisible and status or "")
+    UI.recipeStatus:SetText(#missing == 0 and status or "")
+    UI.targetSlot:Available(not addon.state.crafting and not InCombatLockdown())
+    UI.equipped:Available(not addon.state.crafting and not InCombatLockdown())
     UI.RefreshCraftPanel(recipe)
     UI.Layout(recipe)
 end
@@ -668,6 +715,8 @@ function UI.Detail(recipe)
     if not UI.selectedRecipe or not recipe or UI.selectedRecipe.id ~= recipe.id then
         UI.materialScroll:SetVerticalScroll(0)
         addon.state.craftFailure = nil
+        addon.Targets.message = nil
+        if UI.equippedPicker then UI.equippedPicker:Hide() end
     end
     UI.selectedRecipe = recipe
     UI.conversionArrow:SetShown(recipe ~= nil)
@@ -688,8 +737,32 @@ function UI.Detail(recipe)
             row:Show()
         end
     end
-    UI.outputRow:SetShown(recipe ~= nil)
-    if recipe then
+    local isEnchant = recipe and recipe.isEnchant or false
+    UI.recipeTitle:SetWidth(isEnchant and detailWidth - 62 - padding or auctionColumn - 62 - padding)
+    UI.recipeTitle:SetWordWrap(isEnchant)
+    UI.recipeTitle:SetHeight(isEnchant and 44 or 24)
+    UI.recipeCategory:SetShown(not isEnchant)
+    UI.outputHeading:SetText(isEnchant and "Item to enchant" or "Output · per craft")
+    UI.vendorHeading:SetShown(not isEnchant)
+    UI.auctionHeading:SetShown(not isEnchant)
+    UI.targetPanel:SetShown(isEnchant)
+    UI.enchantEffect:SetShown(isEnchant)
+    UI.outputRow:SetShown(recipe ~= nil and not isEnchant)
+    if isEnchant then
+        local target = addon.Targets.Selected(recipe)
+        UI.targetName:SetText(target and target.name or "Choose an item")
+        UI.targetIcon:SetTexture(target and target.icon or "Interface\\Buttons\\UI-EmptySlot-Disabled")
+        local description = target and C_Spell.GetSpellDescriptionForItemLocation and C_Spell.GetSpellDescriptionForItemLocation(recipe.id, target.location) or recipe.description
+        UI.enchantEffect:SetText(description and description ~= "" and description or recipe.name)
+        UI.enchantEffect:SetHeight(0)
+        UI.targetSlot:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if target then GameTooltip:SetItemByGUID(target.guid) else GameTooltip:SetText("Item to enchant") end
+            GameTooltip:AddLine("Click to open bags. Drag an item here.\nRight-click to clear the target.", 0.8, 0.85, 0.9, true)
+            GameTooltip:Show()
+        end)
+        UI.targetSlot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    elseif recipe then
         local quantity = recipe.outputMin == recipe.outputMax and tostring(recipe.outputMin) or (recipe.outputMin .. "–" .. recipe.outputMax)
         UI.outputRow.icon:SetTexture(recipe.icon or 134400)
         UI.outputRow.name:SetText(quantity .. "  " .. recipe.outputName)
@@ -703,6 +776,80 @@ function UI.Detail(recipe)
     end
     UI.market:SetText(priceAge)
     UI.RefreshCraftButtons()
+end
+
+function UI.ToggleEquippedPicker()
+    if addon.state.crafting or InCombatLockdown() then return end
+    if UI.equippedPicker and UI.equippedPicker:IsShown() then UI.equippedPicker:Hide(); return end
+    if not UI.equippedPicker then
+        local frame = Panel(UI.frame, 340, 220, 0, 0)
+        frame:ClearAllPoints()
+        frame:SetPoint("CENTER", UI.frame, "CENTER", 0, 0)
+        frame:SetFrameStrata("DIALOG")
+        frame:EnableMouse(true)
+        Text(frame, "Equipped items", 270, padding, padding, 15, colors.accent)
+        Button(frame, "×", 26, 26, 302, 6, function() frame:Hide() end, "quantity")
+        frame.empty = Text(frame, "No equipped items can receive this enchant.", 300, padding, 48, 12, colors.muted)
+        frame.scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+        frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", padding, -40)
+        frame.scroll:SetSize(292, 160)
+        frame.content = CreateFrame("Frame", nil, frame.scroll)
+        frame.content:SetSize(292, 160)
+        frame.scroll:SetScrollChild(frame.content)
+        frame.buttons = {}
+        UI.equippedPicker = frame
+    end
+    local frame = UI.equippedPicker
+    local recipe = UI.selectedRecipe
+    local items = addon.Targets.Eligible(recipe, true)
+    for _, button in ipairs(frame.buttons) do button:Hide() end
+    for index, item in ipairs(items) do
+        local button = frame.buttons[index]
+        if not button then
+            button = Button(frame.content, "", 292, 42, 0, (index - 1) * 48, function(self)
+                if UI.selectedRecipe and UI.selectedRecipe.id == self.recipeID and addon.Targets.Select(UI.selectedRecipe, self.item.guid) then frame:Hide() end
+                UI.Detail(UI.selectedRecipe)
+            end, "row")
+            button.icon = button:CreateTexture(nil, "ARTWORK")
+            button.icon:SetSize(28, 28)
+            button.icon:SetPoint("LEFT", button, "LEFT", 8, 0)
+            button.label:ClearAllPoints()
+            button.label:SetPoint("LEFT", button, "LEFT", 44, 0)
+            button.label:SetWidth(238)
+            button.label:SetJustifyH("LEFT")
+            button.label:SetWordWrap(false)
+            frame.buttons[index] = button
+        end
+        button.item, button.recipeID = item, recipe.id
+        button.label:SetText(item.name)
+        button.icon:SetTexture(item.icon or 134400)
+        button:Show()
+        ItemTooltip(button, item)
+    end
+    frame.empty:SetShown(#items == 0)
+    frame.scroll:SetShown(#items > 0)
+    local contentHeight = math.max(48, #items * 48)
+    local visibleHeight = math.min(384, contentHeight)
+    frame.content:SetHeight(contentHeight)
+    frame.scroll:SetHeight(visibleHeight)
+    frame.scroll:SetVerticalScroll(0)
+    frame.scroll.ScrollBar:SetShown(contentHeight > visibleHeight)
+    frame:SetHeight(40 + visibleHeight + padding)
+    frame:Show()
+end
+
+function UI.RefreshStations()
+    for _, button in ipairs(UI.professionButtons or {}) do
+        local status = button:IsShown() and button.profession and addon.Stations.Read(button.profession)
+        button.station:SetShown(status ~= nil and status ~= false)
+        if status then
+            button.station.icon:SetTexture(status.icon)
+            button.station.icon:SetDesaturated(not status.nearby)
+            button.station.icon:SetAlpha(status.nearby and 1 or 0.4)
+            button.station:SetBackdropBorderColor(unpack(status.nearby and {0.3, 1, 0.3, 1} or {0.4, 0.4, 0.4, 0.6}))
+            Hint(button.station, "Crafting stations", status.tooltip)
+        end
+    end
 end
 
 function UI.Refresh()
@@ -726,5 +873,6 @@ function UI.Refresh()
             end
         end
     end
+    UI.RefreshStations()
     UI.RefreshList()
 end

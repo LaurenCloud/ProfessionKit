@@ -2,13 +2,15 @@
 ## Title: Professionator
 ## Notes: A professions window with recipe rankings, material prices and batch crafting.
 ## Author: Lauren
-## Version: 0.1.20
+## Version: 0.2.0
 ## X-License: MIT
 ## SavedVariables: ProfessionatorDB
 ## OptionalDeps: Auctionator
 ## IconTexture: Interface\Icons\Trade_Tailoring
 Model.lua
 Client.lua
+Targets.lua
+Stations.lua
 UI.lua
 Diagnostics.lua
 Core.lua

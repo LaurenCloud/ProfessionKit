@@ -15,8 +15,11 @@ Open a profession normally, press **K**, use the professions menu button, click 
 - All learned recipes remain visible unless excluded by the search, which matches recipe names and categories.
 - **Camping** recipes appear in their own section below regular recipes in both sorts. Camping can be selected automatically when it is the only search result.
 - Recipe details show owned/required materials, vendor purchase prices, auction prices, and the resulting item.
-- **Create** crafts the entered quantity; **Create all** uses the available quantity. Square **+ / −** buttons adjust the quantity. Active crafting stays in a separate bottom-right panel while you browse recipes. A gold progress bar shows remaining time in white, with batch count and estimated total time beside it. The active recipe's name and icon appear when you select a different recipe. Timing follows the live cast when available.
+- **Create** crafts the entered quantity; **Create all** uses the available quantity, capped by remaining recipe charges. Recipes that allow only one craft hide batch controls. Cooldowns display their remaining duration, and client-disabled recipes show their reason.
+- Square **+ / −** buttons adjust the quantity. Active crafting stays in a separate bottom-right panel while you browse recipes. A gold progress bar shows remaining time in white, with batch count and estimated total time beside it. The active recipe's name and icon appear when you select a different recipe. Timing follows the live cast when available.
+- **Enchanting:** click the target item slot to open your bags, then drag an eligible item into the slot. **Equipped…** lets you choose eligible worn gear without unequipping it. Right-click the slot to clear it. **Enchant** applies one enchant; the target stays selected for repeat casts. WoW's overwrite confirmation remains in place. The effect description replaces output prices, since an equipment enchant is not an auctionable item.
 - Missing tools or stations replace the craft controls with a requirement such as **Requires: Forge**.
+- Small station icons beside profession ranks light up with a green border when a relevant station is nearby. Hover for individual station names and states, including specialized stations from learned recipes. Dim icons mean unavailable or not yet known; the tooltip distinguishes these. Individual recipes still check their own tools and stations.
 
 Right-click the minimap icon to configure **Replace the normal professions window**, enabled by default. Left-click always opens Professionator. **Original window**, or `/professionator native`, opens Blizzard's window for the current session.
 
@@ -32,7 +35,7 @@ Skill-up estimates use recipe difficulty weights: orange 1, yellow 0.5, green 0.
 
 Prices use `available crafts × minimum output quantity × recorded auction price per item`. This is gross output value, not profit. Each recipe is an alternative use of the same materials; the list is not a combined crafting plan. Unknown prices sort last within each section and display as a dash. The header shows the actual recorded output price's age when available. Vendor purchase prices are learned when visiting a merchant; they are distinct from vendor sale values.
 
-Craftability counts materials directly in your bags. It does not plan intermediate crafts or purchases. Gathering journals and recipes requiring reagent choices can use **Original window**. Crafting always requires an explicit click and rechecks the live profession, inventory, requirements, and combat state. Nothing buys materials, posts auctions, or sends messages.
+Craftability counts materials directly in your bags. It does not plan intermediate crafts or purchases. **Original window** remains available for trade-window enchants on another player's gear, disenchanting/salvage, gathering journals, and recipes requiring reagent choices. Crafting always requires an explicit click and rechecks the live profession, inventory, requirements, cooldown, allowed quantity, target item, and combat state. Nothing buys materials, posts auctions, or sends messages.
 
 ## Diagnostics and limitations
 
@@ -53,7 +56,7 @@ python scripts/validate.py --run
 python scripts/package.py --build
 ```
 
-Validation loads every addon Lua file and drives its actual UI/event callbacks with simulated frames, recipes, inventory, and prices. It covers cold opens, profession changes, ranking and search, camping sections, scrolling, missing data, crafting, timing, interrupted/blocked requests, native fallback, preferences, and reload persistence. It writes an inspectable report and layout previews under `artifacts/`. Previews approximate game artwork and use placeholder item icons; they are not game screenshots.
+Validation loads every addon Lua file and drives its actual UI/event callbacks with simulated frames, recipes, inventory, and prices. It covers cold opens, profession changes, ranking and search, camping sections, scrolling, missing data, crafting, timing, interrupted/blocked requests, native fallback, preferences, and reload persistence. Enchanting scenarios exercise bag opening, invalid drops, equipped selection, item movement/removal, locked items, overwrite accept/cancel, and single casts. Cooldown, charge, single-craft, disabled-recipe and station-proximity scenarios use native-shaped API data. It writes an inspectable report and layout previews under `artifacts/`. Previews approximate game artwork and use placeholder item icons; they are not game screenshots.
 
 For an optional read-only Auctionator replay, pass both `--auctionator-directory` and `--auctionator-settings` to `scripts/validate.py`, pointing to your installed addon directory and its saved `Auctionator.lua` file. No saved settings are bundled or committed.
 

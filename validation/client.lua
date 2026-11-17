@@ -99,6 +99,14 @@ function methods:GetUnboundedStringWidth()
     local text = self:GetText():gsub("|T.-|t", "..")
     return #text * (self.fontSize or 13) * 0.53
 end
+function methods:GetStringHeight()
+    local lines = 0
+    for line in (self:GetText() .. "\n"):gmatch("(.-)\n") do
+        lines = lines + math.max(1, math.ceil(#line * (self.fontSize or 13) * 0.53 / math.max(1, self.width)))
+    end
+    return lines * ((self.fontSize or 13) + 2)
+end
+function methods:SetDesaturated(value) self.desaturated = value end
 function methods:SetFont(path, size) self.fontSize = size end
 function methods:SetFontObject() self.fontSize = 13 end
 function methods:SetTextColor(...) self.textColor = {...} end
@@ -351,7 +359,7 @@ Auctionator = {API = {v1 = {
 }}, Database = {GetPriceHistory = function(_, id) return harness.prices[tonumber(id)] and {{available = 126}} or {} end}}
 function GetMerchantNumItems() return 1 end
 function GetMerchantItemLink() return "item:2320" end
-function GetMerchantItemInfo() return "Coarse Thread", 136249, 10, 1, -1, true, false end
+C_MerchantFrame = {GetItemInfo = function() return {name = "Coarse Thread", texture = 136249, price = 10, stackCount = 1, numAvailable = -1, isPurchasable = true, hasExtendedCost = false} end}
 
 -- Classic recipe shapes and quantities; prices and inventory are controlled scenarios, not live market quotes.
 harness.Item(2589, "Linen Cloth", 13, 80, 20)

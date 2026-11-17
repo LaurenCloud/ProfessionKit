@@ -44,6 +44,8 @@ local function Context(recipeID)
         recipeInfo = recipeID and Read(api.GetRecipeInfo, recipeID), schematic = schematic,
         craftableCount = recipeID and Read(api.GetCraftableCount, recipeID),
         requirements = recipeID and Read(api.GetRecipeRequirements, recipeID), materials = {},
+        cooldown = recipeID and Read(addon.Client.Cooldown, recipeID),
+        enchantTargetGUID = addon.Targets.selectedGUID,
     }
     for _, slot in ipairs(type(schematic) == "table" and schematic.reagentSlotSchematics or {}) do
         for _, reagent in ipairs(slot.reagents or {}) do
@@ -127,6 +129,13 @@ function Diagnostics.Initialize()
             craftingReagents = Copy(craftingReagents, 0), recipeLevel = Copy(recipeLevel, 0),
             orderID = Copy(orderID, 0), applyConcentration = Copy(applyConcentration, 0)}, recipeID)
     end)
+    if C_TradeSkillUI.CraftEnchant then
+        hooksecurefunc(C_TradeSkillUI, "CraftEnchant", function(recipeID, count, _, location)
+            lastCraftTime, lastRecipeID = GetTime(), recipeID
+            Diagnostics.Record("enchant-api-call", {recipeID = recipeID, count = count,
+                targetGUID = location and Read(C_Item.GetItemGUID, location)}, recipeID)
+        end)
+    end
     local events = CreateFrame("Frame")
     events:SetScript("OnEvent", function(_, ...) Diagnostics.Event(...) end)
     for event in pairs(professionEvents) do events:RegisterEvent(event) end

@@ -1,6 +1,6 @@
 local addonName, addon = ...
 local Client, UI, Model = addon.Client, addon.UI, addon.Model
-addon.version = "0.1.17"
+addon.version = "0.2.0"
 addon.state = { recipes = {}, query = "", sort = "skill", multiplyByQuantity = true, loading = false, crafting = false }
 local state = addon.state
 local events = CreateFrame("Frame")
@@ -97,6 +97,13 @@ local function WatchCraft(request)
         -- An older request's timer must never stop a newer batch.
         if state.craftRequest ~= request then return end
         local now = GetTime()
+        if request.isEnchant and not request.started and addon.Targets.ConfirmationVisible() then
+            request.waitingForConfirmation = true
+            request.lastActivity = now
+            UI.RefreshCraftButtons()
+            WatchCraft(request)
+            return
+        end
         local queuedCrafts = QueuedCrafts()
         -- A backgrounded client can run an overdue timer before queued cast
         -- events. Start a fresh observation window instead of declaring failure.
@@ -123,7 +130,7 @@ local function WatchCraft(request)
         end
         addon.Diagnostics.Record("craft-idle-timeout", {recipeID = request.recipeID, count = request.count, started = request.started,
             queuedCrafts = queuedCrafts, idleSeconds = request.idleSince and now - request.idleSince}, request.recipeID)
-        FinishCraft(request.started and "Crafting stopped." or "Craft did not start. Try Original window.")
+        FinishCraft(request.started and "Crafting stopped." or request.waitingForConfirmation and "Enchant canceled." or "Craft did not start. Try Original window.")
     end)
 end
 
@@ -219,8 +226,11 @@ function addon.Craft(all)
     local current = Client.OpenInfo()
     -- Read fresh data on the hardware click; the displayed row may be stale.
     local recipe = current and current.professionID == state.professionID and state.selected and Client.Recipe(state.selected) or nil
-    local count = all and recipe and recipe.available or tonumber(UI.quantity:GetText()) or 0
+    local count = all and Model.MaximumCraftCount(recipe) or recipe and not recipe.canCreateMultiple and 1 or tonumber(UI.quantity:GetText()) or 0
     local valid, reason = Model.CraftAllowed(recipe, count, current and current.professionID, state.professionID, InCombatLockdown())
+    if all and recipe and not recipe.canCreateMultiple then valid, reason = false, "This recipe can only be crafted one at a time." end
+    local target
+    if valid then valid, reason, target = addon.Targets.Validate(recipe) end
     addon.Diagnostics.Request(recipe, count, all, valid, reason)
     if not valid then
         state.craftFailure = {recipeID = state.selected, message = reason}
@@ -228,7 +238,8 @@ function addon.Craft(all)
         return
     end
     state.craftFailure = nil
-    local request = {recipeID = recipe.id, recipeName = recipe.name, icon = recipe.icon, count = count, remaining = count, started = false, lastActivity = GetTime(), castSeconds = recipe.castSeconds}
+    local request = {recipeID = recipe.id, recipeName = recipe.name, icon = recipe.icon, count = count, remaining = count,
+        started = false, lastActivity = GetTime(), castSeconds = recipe.castSeconds, isEnchant = recipe.isEnchant, targetGUID = target and target.guid}
     state.craftRequest = request
     state.crafting = true
     WatchCraft(request)
@@ -236,7 +247,11 @@ function addon.Craft(all)
     -- Match ProfessionBuddy's Forever Source:Craft path: one direct call from the
     -- hardware click. Keep this action outside pcall/xpcall and timer callbacks.
     -- Client rejection is reported through events, not a Lua return value.
-    C_TradeSkillUI.CraftRecipe(recipe.id, count)
+    if recipe.isEnchant then
+        C_TradeSkillUI.CraftEnchant(recipe.id, 1, nil, target.location)
+    else
+        C_TradeSkillUI.CraftRecipe(recipe.id, count)
+    end
     UI.RefreshCraftButtons()
 end
 
@@ -311,6 +326,7 @@ local function Initialize()
     state.sort = ProfessionatorDB.sort == "auction" and "auction" or "skill"
     if type(ProfessionatorDB.multiplyByQuantity) ~= "boolean" then ProfessionatorDB.multiplyByQuantity = true end
     state.multiplyByQuantity = ProfessionatorDB.multiplyByQuantity
+    ProfessionatorDB.stationRecipes = ProfessionatorDB.stationRecipes or {}
     initialized = true
     addon.Diagnostics.Initialize()
     BuildLauncher()
@@ -386,17 +402,19 @@ for _, event in ipairs({"ADDON_LOADED", "PLAYER_LOGOUT", "TRADE_SKILL_SHOW", "TR
     "TRADE_SKILL_DATA_SOURCE_CHANGED", "TRADE_SKILL_DETAILS_UPDATE", "TRADE_SKILL_NAME_UPDATE", "TRADE_SKILL_CRAFT_BEGIN",
     "TRADE_SKILL_ITEM_CRAFTED_RESULT", "UPDATE_TRADESKILL_CAST_STOPPED", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
     "UI_ERROR_MESSAGE", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN",
-    "BAG_UPDATE_DELAYED", "SKILL_LINES_CHANGED", "ITEM_DATA_LOAD_RESULT", "MERCHANT_SHOW", "MERCHANT_UPDATE", "AUCTION_HOUSE_CLOSED",
+    "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "SPELL_UPDATE_COOLDOWN", "SPELL_UPDATE_CHARGES", "SPELL_TEXT_UPDATE",
+    "SKILL_LINES_CHANGED", "ITEM_DATA_LOAD_RESULT", "MERCHANT_SHOW", "MERCHANT_UPDATE", "AUCTION_HOUSE_CLOSED",
     "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED"}) do events:RegisterEvent(event) end
 
--- Station proximity can change without a recipe-list event. Refresh only the selected
--- recipe once per second while visible; avoid repeatedly scanning the entire recipe list.
+-- Station proximity can change without a recipe-list event. Refresh station probes
+-- and the selected recipe once per second while visible, without rescanning full lists.
 local elapsedSinceCheck = 0
 events:SetScript("OnUpdate", function(_, elapsed)
     if not Visible() then return end
     elapsedSinceCheck = elapsedSinceCheck + elapsed
     if elapsedSinceCheck < 1 then return end
     elapsedSinceCheck = 0
+    UI.RefreshStations()
     local current = Client.OpenInfo()
     if current and current.professionID == state.professionID and state.selected then
         local recipe = Client.Recipe(state.selected)

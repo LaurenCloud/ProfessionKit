@@ -47,6 +47,43 @@ function Client.Item(itemID)
     return record
 end
 
+local function PlainNumber(value)
+    if issecretvalue and issecretvalue(value) then return nil end
+    if type(value) == "number" and value == value and value ~= math.huge then return value end
+end
+
+function Client.Cooldown(recipeID)
+    -- The profession API returns remaining seconds, not a start timestamp. A
+    -- recharging recipe can still be used while it has charges left.
+    local remaining, charges, maximumCharges
+    if C_TradeSkillUI.GetRecipeCooldown then
+        local seconds, _, available, maximum = C_TradeSkillUI.GetRecipeCooldown(recipeID)
+        remaining, charges, maximumCharges = PlainNumber(seconds), PlainNumber(available), PlainNumber(maximum)
+    end
+    if maximumCharges and maximumCharges > 0 and charges then
+        return charges > 0 and 0 or math.max(0, remaining or 0), math.max(0, charges)
+    end
+    if remaining and remaining > 0 then return remaining, nil end
+    local chargeInfo = C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(recipeID)
+    if chargeInfo and PlainNumber(chargeInfo.currentCharges) and PlainNumber(chargeInfo.maxCharges) and chargeInfo.maxCharges > 0 then
+        local start, duration = PlainNumber(chargeInfo.cooldownStartTime), PlainNumber(chargeInfo.cooldownDuration)
+        remaining = start and duration and math.max(0, start + duration - GetTime()) or 0
+        return chargeInfo.currentCharges > 0 and 0 or remaining, chargeInfo.currentCharges
+    end
+    local cooldown = C_Spell.GetSpellCooldown and C_Spell.GetSpellCooldown(recipeID)
+    if cooldown then
+        local start, duration = PlainNumber(cooldown.startTime), PlainNumber(cooldown.duration)
+        local global = C_Spell.GetSpellCooldown(61304)
+        local globalStart = global and PlainNumber(global.startTime)
+        local globalDuration = global and PlainNumber(global.duration)
+        -- Compare the actual GCD interval; isOnGCD is only reliable inside its event.
+        local onlyGlobal = start and duration and globalStart and globalDuration and duration > 0
+            and math.abs(start - globalStart) < 0.01 and math.abs(duration - globalDuration) < 0.01
+        if start and duration and not onlyGlobal then return math.max(0, start + duration - GetTime()), nil end
+    end
+    return 0, nil
+end
+
 function Client.Recipe(recipeID)
     local api = C_TradeSkillUI
     local info = api.GetRecipeInfo(recipeID)
@@ -57,6 +94,10 @@ function Client.Recipe(recipeID)
     local output = Client.Item(itemID)
     local category = info.categoryID and api.GetCategoryInfo(info.categoryID)
     local spell = C_Spell.GetSpellInfo(recipeID)
+    local recipeTypes = Enum.TradeskillRecipeType or {}
+    local isEnchant = schematic.recipeType == recipeTypes.Enchant and recipeTypes.Enchant ~= nil or info.isEnchantingRecipe == true
+    local isGathering = info.isGatheringRecipe == true or (recipeTypes.Gathering ~= nil and schematic.recipeType == recipeTypes.Gathering)
+    local cooldown, charges = Client.Cooldown(recipeID)
     local recipe = {
         id = recipeID, name = info.name or "Loading recipe…", learned = info.learned,
         icon = info.icon or output.icon, category = category and category.name or "Recipes",
@@ -67,14 +108,25 @@ function Client.Recipe(recipeID)
         outputMin = schematic.quantityMin or 1, outputMax = schematic.quantityMax or schematic.quantityMin or 1,
         auction = output.auction, age = output.age, bound = output.bound,
         vendorSell = output.vendorSell, reagents = {}, requirements = api.GetRecipeRequirements(recipeID) or {},
-        cooldown = api.GetRecipeCooldown and api.GetRecipeCooldown(recipeID) or 0,
+        cooldown = cooldown, charges = charges,
+        isEnchant = isEnchant, isGathering = isGathering,
+        canCreateMultiple = info.canCreateMultiple ~= false and not isEnchant and not isGathering
+            and not (api.HasNoReagentCost and api.HasNoReagentCost(recipeID)),
+        disabled = info.disabled == true or info.craftable == false, disabledReason = info.disabledReason,
+        description = isEnchant and C_Spell.GetSpellDescription and C_Spell.GetSpellDescription(recipeID) or nil,
         castSeconds = spell and type(spell.castTime) == "number" and spell.castTime > 0 and spell.castTime / 1000 or nil,
-        unsupported = not itemID or itemID == 0,
+        unsupported = isGathering or info.isSalvageRecipe == true or info.isRecraft == true
+            or (not isEnchant and (not itemID or itemID == 0))
+            or (isEnchant and (not api.CraftEnchant or not api.GetEnchantItems)),
     }
     local profession = Client.OpenInfo()
     recipe.skillRoom = profession and profession.maxSkillLevel and profession.skillLevel and math.max(0, profession.maxSkillLevel - profession.skillLevel) or nil
     if profession and profession.skillLevel and info.maxTrivialLevel and info.maxTrivialLevel > 0 then
         recipe.skillRoom = math.min(recipe.skillRoom or math.huge, math.max(0, info.maxTrivialLevel - profession.skillLevel))
+    end
+    if recipe.available == math.huge then recipe.available = 1 end
+    if isEnchant then
+        recipe.outputName, recipe.auction, recipe.age, recipe.vendorSell = recipe.name, nil, nil, nil
     end
     local basic = Enum.CraftingReagentType.Basic
     for _, slot in ipairs(schematic.reagentSlotSchematics or {}) do
@@ -111,13 +163,15 @@ function Client.Read(professionID)
             end
         end
     end
+    if addon.Stations then addon.Stations.Observe(professionID, recipes) end
     return recipes
 end
 
 function Client.RecordVendor()
     for index = 1, GetMerchantNumItems() do
         local link = GetMerchantItemLink(index)
-        local _, _, price, stack, _, _, extended = GetMerchantItemInfo(index)
+        local info = C_MerchantFrame.GetItemInfo(index)
+        local price, stack, extended = info and info.price, info and info.stackCount, info and info.hasExtendedCost
         local itemID = link and tonumber(link:match("item:(%d+)"))
         if itemID and price and stack and stack > 0 and not extended then
             ProfessionatorDB.vendorPrices[itemID] = { price = price / stack, observed = time() }
