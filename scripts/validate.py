@@ -184,6 +184,7 @@ def main():
     recipe_controls_runtime = load_addon(saved_variables={"replaceNative": True})
     background_runtime = load_addon()
     enchanting_runtime = load_addon()
+    navigation_runtime = load_addon()
     success = True
     error = None
     try:
@@ -205,6 +206,7 @@ def main():
             runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
         background_runtime.execute((PROJECT / "validation/background_crafting.lua").read_text(encoding="utf-8"))
         enchanting_runtime.execute((PROJECT / "validation/enchanting_stations.lua").read_text(encoding="utf-8"))
+        navigation_runtime.execute((PROJECT / "validation/crafting_navigation.lua").read_text(encoding="utf-8"))
         for open_from_menu in (False, True):
             first_open_runtime = load_addon()
             first_open_runtime.globals().Harness.openFromMenu = open_from_menu
@@ -234,13 +236,13 @@ def main():
     report = plain(harness.result) if success else {"checks": plain(harness.checks), "error": error}
     # Include partial workflow results on failure so the report cannot say every
     # check passed while omitting the session that actually failed.
-    for session in (preferences_runtime, camping_runtime, recipe_ranking_runtime, recipe_controls_runtime, background_runtime, enchanting_runtime):
+    for session in (preferences_runtime, camping_runtime, recipe_ranking_runtime, recipe_controls_runtime, background_runtime, enchanting_runtime, navigation_runtime):
         report["checks"].extend(plain(session.globals().Harness.checks))
     report["timestamp"] = datetime.now(timezone.utc).isoformat()
     report["passed"] = success
     report["sourceHashes"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (PROJECT / "Professionator").iterdir() if path.is_file()}
     (arguments.output_directory / "integration-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    for session in (harness, preferences_runtime.globals().Harness, camping_runtime.globals().Harness, recipe_ranking_runtime.globals().Harness, recipe_controls_runtime.globals().Harness, enchanting_runtime.globals().Harness):
+    for session in (harness, preferences_runtime.globals().Harness, camping_runtime.globals().Harness, recipe_ranking_runtime.globals().Harness, recipe_controls_runtime.globals().Harness, enchanting_runtime.globals().Harness, navigation_runtime.globals().Harness):
         for name, scene in session.snapshots.items():
             converted = plain(scene)
             (arguments.output_directory / f"{name}.json").write_text(json.dumps(converted, indent=2, ensure_ascii=False), encoding="utf-8")

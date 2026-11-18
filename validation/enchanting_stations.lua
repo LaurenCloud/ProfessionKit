@@ -144,6 +144,7 @@ addon.Craft(true)
 harness.Check("Hidden Create all cannot enqueue a single-craft recipe", #harness.crafts == before)
 addon.state.craftFailure = nil; UI.RefreshCraftButtons(); UI.create:Click()
 harness.Check("Single craft ignores stale quantity from previous recipe", harness.crafts[#harness.crafts].count == 1)
+harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "single-copper", 2657)
 harness.casting = false; harness.Event("UPDATE_TRADESKILL_CAST_STOPPED"); harness.Advance(.2)
 copper.info.canCreateMultiple = true
 copper.cooldown = 180; addon.Refresh()
@@ -152,6 +153,7 @@ harness.Snapshot("recipe-cooldown")
 copper.charges, copper.maximumCharges = 2, 3
 addon.Refresh(); UI.createAll:Click()
 harness.Check("Recharging recipe allows only its remaining charges", harness.crafts[#harness.crafts].count == 2)
+for index = 1, 2 do harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "charged-copper-" .. index, 2657) end
 harness.casting = false; harness.Event("UPDATE_TRADESKILL_CAST_STOPPED"); harness.Advance(.2)
 copper.charges = 0; addon.Refresh()
 harness.Check("Exhausted recipe charges block crafting while recharging", not UI.create.enabled and not UI.createAll.enabled)
@@ -171,6 +173,7 @@ spellCooldowns[2657], spellCooldowns[61304] = nil, nil
 spellCharges[2657] = {currentCharges = 1, maxCharges = 3, cooldownStartTime = harness.now, cooldownDuration = 30}
 addon.Refresh(); UI.createAll:Click()
 harness.Check("Spell charge fallback caps Create all", harness.crafts[#harness.crafts].count == 1)
+harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "charged-copper", 2657)
 harness.casting = false; harness.Event("UPDATE_TRADESKILL_CAST_STOPPED"); harness.Advance(.2)
 spellCharges[2657] = nil
 C_TradeSkillUI.GetRecipeCooldown = nativeCooldown

@@ -45,6 +45,7 @@ Check("Create issues one explicit recipe-and-count call", #harness.crafts == 1 a
 UI.createAll:Click()
 Check("Crafting prevents overlapping batch clicks", #harness.crafts == 1 and not UI.create.enabled and not UI.createAll.enabled)
 harness.casting = false
+for index = 1, 2 do harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "completed-bag-" .. index, 3755) end
 harness.Event("UPDATE_TRADESKILL_CAST_STOPPED"); harness.Advance(0.2)
 Check("End of batch re-enables controls", UI.create.enabled and not addon.state.crafting)
 
@@ -88,6 +89,7 @@ Check("Returning to forge restores crafting controls", UI.create:IsShown() and U
 Check("Prices includes multiple outputs per craft", UI.selectedRecipe.available == 4 and UI.selectedRecipe.auctionTotal == 230 and UI.selectedRecipe.batchPrice == 920)
 UI.quantity:SetText("1"); UI.createAll:Click()
 Check("Create all uses freshly available count", #harness.crafts == 2 and harness.crafts[2].count == 4)
+for index = 1, 4 do harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "completed-bronze-" .. index, 2659) end
 harness.casting = false; harness.Event("UPDATE_TRADESKILL_CAST_STOPPED"); harness.Advance(0.2)
 Select(2657)
 Check("Original window does not paint during profession switches", harness.visibleNativeShows == 0)

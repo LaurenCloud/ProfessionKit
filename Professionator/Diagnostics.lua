@@ -37,6 +37,8 @@ local function Context(recipeID)
         ready = Read(api.IsTradeSkillReady), changing = Read(api.IsDataSourceChanging), linked = Read(api.IsTradeSkillLinked),
         profession = Read(api.GetBaseProfessionInfo), childProfession = Read(api.GetChildProfessionInfo),
         selectedProfessionID = addon.state.professionID, selectedRecipeID = addon.state.selected,
+        craftingProfessionID = addon.state.craftRequest and addon.state.craftRequest.professionID,
+        craftingRecipeID = addon.state.craftRequest and addon.state.craftRequest.recipeID,
         nativeVisible = ProfessionsFrame and ProfessionsFrame:IsShown() or false,
         nativeAlpha = ProfessionsFrame and ProfessionsFrame:GetAlpha(),
         playerCasting = UnitCastingInfo("player"), playerChanneling = UnitChannelInfo("player"),

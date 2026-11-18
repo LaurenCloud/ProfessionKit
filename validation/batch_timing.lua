@@ -42,7 +42,9 @@ local anchor, parent, relativeAnchor, rightInset, bottomInset = UI.craftingPanel
 harness.Check("Active batch owns a separate panel anchored at the workspace bottom right", UI.craftingPanel.parent == UI.workspace
     and UI.craftProgress.parent == UI.craftingPanel and UI.craftStatus.parent == UI.craftingPanel
     and anchor == "BOTTOMRIGHT" and parent == UI.workspace and relativeAnchor == "BOTTOMRIGHT" and rightInset == -12 and bottomInset == 12)
-harness.Check("Selected active recipe needs no duplicate crafting identity", not UI.craftName:IsShown() and not UI.craftIcon:IsShown() and BatchPanelClearsDetails())
+harness.Check("Active recipe always has its identity in the dedicated crafting panel", UI.craftName:IsVisible() and UI.craftIcon:IsVisible()
+    and UI.craftName:GetText() == "Smelt Copper" and BatchPanelClearsDetails())
+local craftingPanelHeight = UI.craftingPanel:GetHeight()
 harness.Check("Countdown keeps seven units of vertical room on each side", (UI.craftProgress:GetHeight() - UI.craftRemaining:GetHeight()) / 2 == 7)
 SelectRecipe(1230161)
 harness.Check("Browsing another recipe shows the actual active recipe name and icon", UI.selectedRecipe.name == "Lodestone"
@@ -61,7 +63,7 @@ harness.Check("Empty search retains the batch identity and live countdown", UI.s
 harness.recipes[1230161].requirements[1].met = true
 UI.search:SetText("")
 SelectRecipe(2657)
-harness.Check("Returning to the active recipe removes its redundant identity", not UI.craftName:IsShown() and not UI.craftIcon:IsShown()
+harness.Check("Returning to the active recipe retains the same crafting panel layout", UI.craftName:IsVisible() and UI.craftIcon:IsVisible() and UI.craftingPanel:GetHeight() == craftingPanelHeight
     and UI.craftProgress:IsVisible() and addon.state.craftRequest == request and #harness.crafts == craftCalls)
 
 -- Scroll a larger real recipe fixture while a different recipe is crafting.

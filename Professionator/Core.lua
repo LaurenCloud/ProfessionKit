@@ -1,6 +1,6 @@
 local addonName, addon = ...
 local Client, UI, Model = addon.Client, addon.UI, addon.Model
-addon.version = "0.2.0"
+addon.version = "0.2.1"
 addon.state = { recipes = {}, query = "", sort = "skill", multiplyByQuantity = true, loading = false, crafting = false }
 local state = addon.state
 local events = CreateFrame("Frame")
@@ -173,13 +173,24 @@ end
 
 function addon.Open(professionID)
     if InCombatLockdown() then Message("Open professions after combat."); return end
-    if state.crafting then Message("Finish or cancel the current batch before switching professions."); return end
     local professions = Client.Professions()
     local selected
     for _, profession in ipairs(professions) do if profession.id == professionID then selected = profession end end
     if not selected then selected = professions[1] end
     addon.nativeMode = false
     addon.cancelledPendingOpen = false
+    local current = Client.OpenInfo()
+    if selected and current and current.professionID == selected.id and state.professionID == selected.id then
+        UI.Build()
+        UI.frame:Show()
+        addon.HideNative()
+        addon.Refresh()
+        return
+    end
+    if state.craftRequest then
+        addon.Diagnostics.Record("browse-profession-during-craft", {fromProfessionID = state.professionID,
+            toProfessionID = selected and selected.id, craftingProfessionID = state.craftRequest.professionID}, state.craftRequest.recipeID)
+    end
     state.query, state.selected, state.recipes = "", nil, {}
     state.craftFailure = nil
     state.professionID = selected and selected.id or nil
@@ -191,6 +202,9 @@ function addon.Open(professionID)
     UI.Refresh()
     UI.frame:Show()
     if not selected then UI.listEmpty:SetText("Learn a profession from a trainer first."); return end
+    -- Open the data source directly on this click. Casting the profession's
+    -- spellbook ability would interrupt the spell currently being crafted.
+    -- The active request keeps its identity independently of the browsed source.
     local success, reason = pcall(C_TradeSkillUI.OpenTradeSkill, selected.id)
     if not success then state.loading = false; Message("Could not open profession: " .. tostring(reason)) end
     ScheduleAdoption()
@@ -238,7 +252,7 @@ function addon.Craft(all)
         return
     end
     state.craftFailure = nil
-    local request = {recipeID = recipe.id, recipeName = recipe.name, icon = recipe.icon, count = count, remaining = count,
+    local request = {recipeID = recipe.id, recipeName = recipe.name, professionID = state.professionID, icon = recipe.icon, count = count, remaining = count,
         started = false, lastActivity = GetTime(), castSeconds = recipe.castSeconds, isEnchant = recipe.isEnchant, targetGUID = target and target.guid}
     state.craftRequest = request
     state.crafting = true
@@ -350,8 +364,14 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
         if state.requestedID then return end
         openGeneration = openGeneration + 1
         addon.adoptingNative = false
-        state.crafting = false
-        state.craftRequest, state.craftFailure = nil, nil
+        -- A data-source handoff is not proof that a cast stopped. Keep observing
+        -- the original spell and queue, including close events delivered late.
+        if state.craftRequest then
+            addon.Diagnostics.Record("craft-source-closed", {browsedProfessionID = state.professionID}, state.craftRequest.recipeID)
+            QueueRefresh()
+            return
+        end
+        state.craftFailure = nil
         addon.closingFromEvent = true
         if Visible() then UI.frame:Hide() end
         addon.closingFromEvent = false
@@ -383,7 +403,13 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
             elseif event == "UNIT_SPELLCAST_INTERRUPTED" then FinishCraft("Crafting interrupted.") end
         end
     elseif event == "UPDATE_TRADESKILL_CAST_STOPPED" then
-        if state.craftRequest then FinishCraft() end
+        -- This UI event does not identify a recipe, and the current cast can
+        -- still be running after repeat mode stops. Matching spell events and
+        -- the existing idle watchdog determine when our one batch actually ends.
+        if state.craftRequest then
+            addon.Diagnostics.Record("craft-stop-observed", {queuedCrafts = QueuedCrafts()}, state.craftRequest.recipeID)
+            QueueRefresh()
+        end
     elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
         if state.craftRequest and firstArgument == addonName then FinishCraft("WoW blocked crafting. Use Original window.") end
     elseif event == "UI_ERROR_MESSAGE" then
