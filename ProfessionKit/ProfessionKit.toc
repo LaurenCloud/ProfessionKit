@@ -1,10 +1,10 @@
 ## Interface: 16001
-## Title: Professionator
+## Title: ProfessionKit
 ## Notes: A professions window with recipe rankings, material prices and batch crafting.
 ## Author: Lauren
-## Version: 0.2.1
+## Version: 0.3.1
 ## X-License: MIT
-## SavedVariables: ProfessionatorDB
+## SavedVariables: ProfessionKitDB
 ## OptionalDeps: Auctionator
 ## IconTexture: Interface\Icons\Trade_Tailoring
 Model.lua

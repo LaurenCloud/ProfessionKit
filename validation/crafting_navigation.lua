@@ -1,9 +1,9 @@
 -- Exercise real profession buttons while an independently identified batch runs.
 -- The simulated data-source handoff deliberately includes early and late close
 -- notifications; it does not establish native client's protected-call behavior.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
-harness.Event("ADDON_LOADED", "Professionator")
+harness.Event("ADDON_LOADED", "ProfessionKit")
 addon.Open(186); harness.Advance(1)
 addon.state.selected = 2657; UI.RefreshList()
 UI.quantity:SetText("6"); UI.create:Click()
@@ -28,7 +28,7 @@ harness.Check("Switching during a batch immediately clears the old recipe list b
     and #addon.state.recipes == 0 and UI.selectedRecipe == nil and addon.state.craftRequest == request and UI.craftingPanel:IsVisible())
 harness.Advance(1)
 harness.Check("Tailoring can be browsed while the captured Mining batch remains active", addon.state.professionID == 197
-    and UI.title:GetText() == "Tailoring" and #UI.rows == 13 and request.professionID == 186 and request.recipeID == 2657)
+    and UI.title:GetText() == "Tailoring" and #UI.rows == 13 and request.professionID == 186 and request.recipeID == 2657 and not UI.craftWheel:IsShown())
 harness.Check("Cross-profession panel consistently names the original recipe", UI.craftName:IsVisible() and UI.craftName:GetText() == "Smelt Copper"
     and UI.craftIcon.texture == request.icon and UI.craftingPanel:GetHeight() == panelHeight and UI.craftingPanel:GetPoint() == "BOTTOMRIGHT")
 harness.Check("Navigation never closes the data source or calls CraftRecipe again", #harness.crafts == 1 and harness.closeCount == closeCount
@@ -58,7 +58,7 @@ harness.Check("Between-cast queue and matching success survive another professio
 harness.Snapshot("crafting-while-browsing-tailoring")
 SelectProfession(186); harness.Advance(1)
 harness.Check("Returning to the crafting profession retains its original count and panel geometry", addon.state.craftRequest == request
-    and request.remaining == 5 and UI.craftingPanel:GetHeight() == panelHeight)
+    and request.remaining == 5 and UI.craftingPanel:GetHeight() == panelHeight and UI.craftWheel:IsVisible() and UI.craftWheel:GetParent().recipe.id == request.recipeID)
 SelectProfession(185); harness.Advance(1)
 harness.Check("A profession with no loaded recipes still retains the active crafting panel", addon.state.professionID == 185
     and #UI.rows == 0 and UI.craftName:GetText() == "Smelt Copper" and UI.craftingPanel:IsVisible())
@@ -83,7 +83,7 @@ harness.combat = true; SelectProfession(197)
 harness.Check("Combat still prevents protected profession switching", openCount == beforeCombat and addon.state.professionID == 186)
 harness.combat = false
 local switchTrace
-for _, entry in ipairs(ProfessionatorDB.craftDiagnostics.entries) do
+for _, entry in ipairs(ProfessionKitDB.craftDiagnostics.entries) do
     if entry.kind == "browse-profession-during-craft" then switchTrace = entry end
 end
 harness.Check("Switch diagnostics distinguish the viewed and actively crafting professions", switchTrace

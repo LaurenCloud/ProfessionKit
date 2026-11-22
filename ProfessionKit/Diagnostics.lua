@@ -66,17 +66,17 @@ local function Context(recipeID)
 end
 
 function Diagnostics.Record(kind, details, recipeID)
-    if not ProfessionatorDB or not ProfessionatorDB.craftDiagnostics then return end
+    if not ProfessionKitDB or not ProfessionKitDB.craftDiagnostics then return end
     -- Observation must never interrupt a craft, including when an API is unavailable.
     local success, failure = pcall(function()
-        local trace = ProfessionatorDB.craftDiagnostics
+        local trace = ProfessionKitDB.craftDiagnostics
         local entry = {kind = kind, timestamp = time(), elapsed = GetTime(), sessionStarted = sessionStarted,
-            version = addon.version, source = addon.nativeMode and "original-window" or "professionator", details = details}
+            version = addon.version, source = addon.nativeMode and "original-window" or "professionkit", details = details}
         if recipeID then entry.context = Context(recipeID) end
         trace.entries[#trace.entries + 1] = Copy(entry, 0)
         while #trace.entries > maximumEntries do table.remove(trace.entries, 1) end
     end)
-    if not success then ProfessionatorDB.craftDiagnostics.recordingError = tostring(failure) end
+    if not success then ProfessionKitDB.craftDiagnostics.recordingError = tostring(failure) end
 end
 
 function Diagnostics.Request(recipe, count, all, valid, reason)
@@ -118,9 +118,9 @@ function Diagnostics.Event(event, firstArgument, secondArgument, thirdArgument)
 end
 
 function Diagnostics.Initialize()
-    local trace = ProfessionatorDB.craftDiagnostics
+    local trace = ProfessionKitDB.craftDiagnostics
     if type(trace) ~= "table" or trace.schema ~= 1 then trace = {schema = 1, entries = {}} end
-    ProfessionatorDB.craftDiagnostics = trace
+    ProfessionKitDB.craftDiagnostics = trace
     sessionStarted = time()
     Diagnostics.Record("loaded", {build = GetBuildInfo()})
     -- A secure post-hook observes both buttons without replacing or changing CraftRecipe.

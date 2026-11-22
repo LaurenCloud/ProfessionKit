@@ -50,12 +50,17 @@ function Model.PriceRecipe(recipe)
     recipe.skillEstimate = recipe.canSkillUp and math.min(recipe.skillRoom or math.huge, recipe.available * recipe.skillUps * chance) or 0
 end
 
-function Model.Select(recipes, query, sort, multiplyByQuantity)
+local sectionOrder = {Pinned = 1, Recipes = 2, Camping = 3}
+
+function Model.Select(recipes, query, sort, multiplyByQuantity, pinnedRecipes)
     local rows = {}
     query = (query or ""):lower()
     for _, recipe in ipairs(recipes) do
         local matches = recipe.name:lower():find(query, 1, true) or recipe.category:lower():find(query, 1, true)
         if matches then
+            if pinnedRecipes[recipe.id] then recipe.section = "Pinned"
+            elseif recipe.isCamping then recipe.section = "Camping"
+            else recipe.section = "Recipes" end
             rows[#rows + 1] = recipe
         end
     end
@@ -70,7 +75,7 @@ function Model.Select(recipes, query, sort, multiplyByQuantity)
         end
     end
     table.sort(rows, function(left, right)
-        if left.isCamping ~= right.isCamping then return not left.isCamping end
+        if left.section ~= right.section then return sectionOrder[left.section] < sectionOrder[right.section] end
         local leftScore, rightScore = Score(left), Score(right)
         if leftScore == rightScore then
             if left.available ~= right.available then return left.available > right.available end

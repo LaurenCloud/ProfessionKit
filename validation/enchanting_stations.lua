@@ -1,6 +1,6 @@
 -- Full-addon scenarios: actual frame callbacks, native-shaped inventory locations,
 -- enchant eligibility, confirmations, recipe cooldowns and moving between stations.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
 Enum.TradeskillRecipeType = {Item = 1, Salvage = 2, Enchant = 3, Gathering = 4}
 Enum.RecipeRequirementType = {SpellFocus = 0, Totem = 1, Area = 2}
@@ -66,9 +66,12 @@ Instance("worn-bracers", 11102, Location(nil, nil, 9))
 Instance("same-item-another-stack", 11101, Location(2, 6))
 Instance("bank-bracers", 11101, Location(7, 3))
 eligible[7457] = {"bag-bracers", "worn-bracers", "same-item-another-stack", "bank-bracers"}
-harness.Event("ADDON_LOADED", "Professionator")
+harness.Event("ADDON_LOADED", "ProfessionKit")
 addon.Open(333); harness.Advance(1)
 harness.Check("Enchant recipe without an output item is supported", UI.selectedRecipe.isEnchant and not UI.selectedRecipe.unsupported)
+UI.recipeButtons[1]:Run("OnEnter")
+harness.Check("Hovering an equipment enchant opens its native spell tooltip", GameTooltip:IsShown() and GameTooltip.hyperlink == "spell:" .. UI.recipeButtons[1].recipe.id)
+UI.recipeButtons[1]:Run("OnLeave")
 harness.Check("Enchant details replace sale output with target and real spell effect", UI.targetPanel:IsShown() and not UI.outputRow:IsShown()
     and not UI.vendorHeading:IsShown() and UI.enchantEffect:GetText():find("stamina"))
 harness.Check("Enchant requires an item and hides every batching control", not UI.create.enabled and not UI.createAll:IsShown()

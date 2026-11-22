@@ -1,4 +1,4 @@
-# Professionator
+# ProfessionKit
 
 WoW Forever addon, interface 16001. User's sketch defines the layout: left profession navigation, middle recipe list with search and ranking controls, right inputs → requirements → output and crafting controls.
 
@@ -10,7 +10,7 @@ Keep the layout compact and content-sized. Recipe tiles always show the native i
 
 Use a shared 12-unit inset around panels. Recipe tiles have smaller 6-unit gaps. The compact search uses a 6-unit inset and an internal placeholder. Sort choices are small inset buttons labelled Sort. The × Quantity checkbox, default checked, multiplies ranking by available crafts; unchecked ranks one craft. Never hide recipes based on materials. Persist the checkbox choice. Row counts, skillup estimates and total/each prices continue to describe available materials. Keep the columns compact; long recipe lists should scroll sooner on smaller screens instead of shrinking the text. Use `est.` for estimates, not a tilde, which renders poorly in the game's font.
 
-Camping recipes belong in a separate Camping section below regular recipes under both sorts. Use larger gold-yellow section headings and an extra 8-unit gap above Camping when it follows visible regular recipes. Default to the first regular recipe when available; camping can be selected automatically when it is the only search result. Preserve explicit selections on refresh. Use the client's Camping category, not item-name guesses.
+Group matching recipes in Pinned, Recipes, Camping order. Pinned regular and Camping recipes rank together under both sorts and quantity settings. Save pins by recipe ID. Unpinning restores the original group. Use the client's Camping category. Show gold-yellow headings for visible groups with an extra 8-unit gap between groups. Omit the heading for a regular-only list. Default to the first matching row and preserve explicit selections on refresh.
 
 Within each section, sort first by the selected full-precision score, then by available craft quantity descending, then by recipe name and ID. Unknown auction prices remain below known prices. Give the bracketed quantity its own color: green when materials are available, red at zero. Recipe-name color and native skill-up arrows represent skill difficulty independently. Keep the existing `est. N skillups` text; the user declined a separate `no skillups` label.
 
@@ -26,7 +26,7 @@ Station badges belong beside the rank on each left profession tab, with native s
 
 The watchdog must respect native queued recasts between individual casts. A confirmed batch requires two separated idle observations before a silent stop; overdue timers start a fresh observation window so background throttling cannot beat queued cast events. Missing queue APIs fall back to the same idle grace. Real interruption/failure events still end the request immediately. Record timer recovery and queue state in diagnostics; never infer completed craft counts from elapsed time.
 
-Left-clicking the minimap icon always opens Professionator. Right-click opens settings with a persistent replace-normal-window checkbox, defaulting on only when unset. Changes apply to the next normal profession open; an explicit original-window fallback lasts for that session only.
+Left-clicking the minimap icon always opens ProfessionKit. Right-click opens settings with a persistent replace-normal-window checkbox, defaulting on only when unset. Changes apply to the next normal profession open; an explicit original-window fallback lasts for that session only.
 
 Use live C_TradeSkillUI data and Auctionator read-only APIs. Unknown prices are not zero. Vendor purchase prices and vendor sale values are distinct. Label skill ranking as heuristic when no exact chance is available. Show Create all total duration from spell cast time; refine total and remaining time from the live matching cast timestamps. Omit unknown timing rather than inventing a duration.
 
@@ -39,6 +39,10 @@ During confirmed crafting, center the remaining time in white with a dark shadow
 K and the menu button share ToggleProfessionsBook. Route that entry point to the remembered profession when replacement is enabled, including the first use after reload before any profession data is open. Preserve disabled replacement and explicit native fallback. Validate cold opens with Blizzard_Professions unloaded.
 
 No unit tests. Validate full addon loading and user workflows with the integration runner and retain its report. Actual client behavior must be reported separately. Deploy with scripts/deploy.ps1, which backs up existing addon files. Source here is authoritative; do not edit only the installed copy.
+
+Keep the main window width fixed. Use compact automatic height until the user drags the bottom-right grip. Persist the preferred height in UI units and derive list capacity from usable height. Fit recipe details, profession tabs and the active batch panel before applying the preference. Temporary content or screen limits must preserve the saved height.
+
+When the recipes overflow, fill the recipe column down to its range counter and clip partial rows at the viewport edges. Include partly visible recipes in the range. Scrolling to the end must reveal the entire final row. Short lists stay content-sized.
 
 Default update guidance: keep playing while files are edited, then `/reload` after deployment. Do not ask for a full restart for updates to this existing addon, including diagnostics or added files in its manifest. A new addon folder needs a full restart. SavedVariables edits require the game to be closed; code edits do not.
 

@@ -1,13 +1,13 @@
 local addonName, addon = ...
 local Client, UI, Model = addon.Client, addon.UI, addon.Model
-addon.version = "0.2.1"
+addon.version = "0.3.1"
 addon.state = { recipes = {}, query = "", sort = "skill", multiplyByQuantity = true, loading = false, crafting = false }
 local state = addon.state
 local events = CreateFrame("Frame")
 local initialized, refreshPending, openGeneration = false, false, 0
 
 local function Message(text)
-    DEFAULT_CHAT_FRAME:AddMessage("|cff6bcbbaProfessionator:|r " .. text)
+    DEFAULT_CHAT_FRAME:AddMessage("|cff6bcbbaProfessionKit:|r " .. text)
 end
 
 local function Visible()
@@ -15,7 +15,7 @@ local function Visible()
 end
 
 local function ShouldReplaceNative()
-    return not addon.nativeMode and (ProfessionatorDB.replaceNative or Visible() or state.requestedID or addon.adoptingNative or addon.cancelledPendingOpen)
+    return not addon.nativeMode and (ProfessionKitDB.replaceNative or Visible() or state.requestedID or addon.adoptingNative or addon.cancelledPendingOpen)
 end
 
 local function RestoreNativeOpacity()
@@ -64,10 +64,10 @@ local function QueueRefresh()
     end)
 end
 
-local function FinishCraft(message)
+local function FinishCraft(message, acceptUIErrorUntil)
     local request = state.craftRequest
     state.crafting, state.craftRequest = false, nil
-    state.craftFailure = message and {recipeID = request and request.recipeID or state.selected, message = message} or nil
+    state.craftFailure = message and {recipeID = request and request.recipeID or state.selected, message = message, acceptUIErrorUntil = acceptUIErrorUntil} or nil
     UI.RefreshCraftButtons()
     QueueRefresh()
 end
@@ -130,7 +130,15 @@ local function WatchCraft(request)
         end
         addon.Diagnostics.Record("craft-idle-timeout", {recipeID = request.recipeID, count = request.count, started = request.started,
             queuedCrafts = queuedCrafts, idleSeconds = request.idleSince and now - request.idleSince}, request.recipeID)
-        FinishCraft(request.started and "Crafting stopped." or request.waitingForConfirmation and "Enchant canceled." or "Craft did not start. Try Original window.")
+        if request.started then
+            FinishCraft("Crafting stopped.")
+        elseif request.waitingForConfirmation then
+            FinishCraft("Enchant canceled.")
+        elseif request.lastUIError then
+            FinishCraft(request.lastUIError)
+        else
+            FinishCraft("Craft did not start. Try Original window.")
+        end
     end)
 end
 
@@ -145,7 +153,7 @@ local function AdoptOpenProfession(generation, attempt)
         state.professionID = current.professionID
         state.requestedID = nil
         addon.adoptingNative = false
-        ProfessionatorDB.lastProfessionID = state.professionID
+        ProfessionKitDB.lastProfessionID = state.professionID
         UI.Build()
         UI.frame:Show()
         addon.HideNative()
@@ -198,7 +206,7 @@ function addon.Open(professionID)
     state.loading = selected ~= nil
     UI.Build()
     UI.search:SetText("")
-    UI.offset = 0
+    UI.recipeScrollOffset = 0
     UI.Refresh()
     UI.frame:Show()
     if not selected then UI.listEmpty:SetText("Learn a profession from a trainer first."); return end
@@ -275,9 +283,9 @@ local function HookNative()
     if not addon.nativeToggle and type(ToggleProfessionsBook) == "function" then
         addon.nativeToggle = ToggleProfessionsBook
         ToggleProfessionsBook = function(...)
-            if not ProfessionatorDB.replaceNative or addon.nativeMode then return addon.nativeToggle(...) end
+            if not ProfessionKitDB.replaceNative or addon.nativeMode then return addon.nativeToggle(...) end
             if InCombatLockdown() then Message("Open professions after combat."); return end
-            if Visible() then UI.frame:Hide() else addon.Open(ProfessionatorDB.lastProfessionID) end
+            if Visible() then UI.frame:Hide() else addon.Open(ProfessionKitDB.lastProfessionID) end
         end
     end
     if not ProfessionsFrame or addon.nativeHooked then return end
@@ -310,7 +318,7 @@ local function HookNative()
 end
 
 local function BuildLauncher()
-    local button = CreateFrame("Button", "ProfessionatorMinimapButton", Minimap)
+    local button = CreateFrame("Button", "ProfessionKitMinimapButton", Minimap)
     addon.launcher = button
     button:SetSize(30, 30)
     button:SetPoint("TOPLEFT", Minimap, "TOPLEFT", -3, 3)
@@ -321,11 +329,11 @@ local function BuildLauncher()
     button:SetScript("OnClick", function(_, mouseButton)
         if mouseButton == "RightButton" then UI.ToggleSettings()
         elseif Visible() then UI.frame:Hide()
-        else addon.Open(ProfessionatorDB.lastProfessionID) end
+        else addon.Open(ProfessionKitDB.lastProfessionID) end
     end)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("Professionator")
+        GameTooltip:SetText("ProfessionKit")
         GameTooltip:AddLine("Left-click: professions\nRight-click: settings", 0.8, 0.85, 0.9)
         GameTooltip:Show()
     end)
@@ -334,19 +342,22 @@ end
 
 local function Initialize()
     if initialized then return end
-    ProfessionatorDB = ProfessionatorDB or {}
-    if ProfessionatorDB.replaceNative == nil then ProfessionatorDB.replaceNative = true end
-    ProfessionatorDB.vendorPrices = ProfessionatorDB.vendorPrices or {}
-    state.sort = ProfessionatorDB.sort == "auction" and "auction" or "skill"
-    if type(ProfessionatorDB.multiplyByQuantity) ~= "boolean" then ProfessionatorDB.multiplyByQuantity = true end
-    state.multiplyByQuantity = ProfessionatorDB.multiplyByQuantity
-    ProfessionatorDB.stationRecipes = ProfessionatorDB.stationRecipes or {}
+    ProfessionKitDB = ProfessionKitDB or {}
+    if ProfessionKitDB.replaceNative == nil then ProfessionKitDB.replaceNative = true end
+    ProfessionKitDB.vendorPrices = ProfessionKitDB.vendorPrices or {}
+    ProfessionKitDB.pinnedRecipes = ProfessionKitDB.pinnedRecipes or {}
+    state.sort = ProfessionKitDB.sort == "auction" and "auction" or "skill"
+    if type(ProfessionKitDB.multiplyByQuantity) ~= "boolean" then ProfessionKitDB.multiplyByQuantity = true end
+    state.multiplyByQuantity = ProfessionKitDB.multiplyByQuantity
+    ProfessionKitDB.stationRecipes = ProfessionKitDB.stationRecipes or {}
     initialized = true
     addon.Diagnostics.Initialize()
     BuildLauncher()
     HookNative()
 end
 
+-- UI_ERROR_MESSAGE has no recipe ID and can arrive on either side of the failed cast.
+local craftErrorWindow = 0.25
 events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, thirdArgument)
     if event == "ADDON_LOADED" then
         if firstArgument == addonName then Initialize() end
@@ -355,8 +366,8 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
     end
     if not initialized then return end
     if event == "PLAYER_LOGOUT" then
-        ProfessionatorDB.sort = state.sort
-        ProfessionatorDB.multiplyByQuantity = state.multiplyByQuantity
+        ProfessionKitDB.sort = state.sort
+        ProfessionKitDB.multiplyByQuantity = state.multiplyByQuantity
     elseif event == "TRADE_SKILL_SHOW" then
         addon.cancelledPendingOpen = false
         if ShouldReplaceNative() then ScheduleAdoption() end
@@ -389,6 +400,7 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
             request.idleSince = nil
             if event == "UNIT_SPELLCAST_START" then
                 request.started = true
+                request.lastUIError = nil
                 ReadCraftTiming(request)
                 request.startedAt = request.startedAt or GetTime()
                 UI.RefreshCraftButtons()
@@ -396,10 +408,17 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
                 ReadCraftTiming(request)
                 UI.RefreshCraftButtons()
             elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+                request.lastUIError = nil
                 request.castEndTime = nil
                 request.remaining = request.remaining - 1
                 if request.remaining <= 0 then FinishCraft() else QueueRefresh() end
-            elseif event == "UNIT_SPELLCAST_FAILED" then FinishCraft("Crafting failed. Check the game's error message.")
+            elseif event == "UNIT_SPELLCAST_FAILED" then
+                local now = GetTime()
+                if request.lastUIError and now - request.lastUIErrorAt <= craftErrorWindow then
+                    FinishCraft(request.lastUIError)
+                else
+                    FinishCraft("Crafting failed.", now + craftErrorWindow)
+                end
             elseif event == "UNIT_SPELLCAST_INTERRUPTED" then FinishCraft("Crafting interrupted.") end
         end
     elseif event == "UPDATE_TRADESKILL_CAST_STOPPED" then
@@ -413,7 +432,17 @@ events:SetScript("OnEvent", function(_, event, firstArgument, secondArgument, th
     elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
         if state.craftRequest and firstArgument == addonName then FinishCraft("WoW blocked crafting. Use Original window.") end
     elseif event == "UI_ERROR_MESSAGE" then
-        if state.craftRequest and not state.craftRequest.started then FinishCraft(secondArgument or "Craft did not start.") end
+        if type(secondArgument) ~= "string" or (issecretvalue and issecretvalue(secondArgument)) or secondArgument == "" then return end
+        local request = state.craftRequest
+        local failure = state.craftFailure
+        if request then
+            request.lastUIError = secondArgument
+            request.lastUIErrorAt = GetTime()
+        elseif failure and failure.acceptUIErrorUntil and GetTime() <= failure.acceptUIErrorUntil then
+            failure.message = secondArgument
+            failure.acceptUIErrorUntil = nil
+            UI.RefreshCraftButtons()
+        end
     elseif event == "MERCHANT_SHOW" or event == "MERCHANT_UPDATE" then
         Client.RecordVendor()
         QueueRefresh()
@@ -448,24 +477,24 @@ events:SetScript("OnUpdate", function(_, elapsed)
     else UI.RefreshCraftButtons() end
 end)
 
-SLASH_PROFESSIONATOR1 = "/professionator"
-SlashCmdList.PROFESSIONATOR = function(command)
+SLASH_PROFESSIONKIT1 = "/professionkit"
+SlashCmdList.PROFESSIONKIT = function(command)
     command = (command or ""):lower():match("^%s*(.-)%s*$")
     if command == "native" then addon.Native()
     elseif command == "report" then
         local current = Client.OpenInfo()
-        ProfessionatorDB.diagnostic = {
+        ProfessionKitDB.diagnostic = {
             timestamp = time(), version = addon.version, selectedProfessionID = state.professionID,
             liveProfessionID = current and current.professionID, loading = state.loading,
             recipeCount = #state.recipes, selectedRecipe = state.selected, crafting = state.crafting,
             auctionator = Auctionator and Auctionator.API ~= nil or false, recipes = {},
         }
         for _, recipe in ipairs(state.recipes) do
-            tinsert(ProfessionatorDB.diagnostic.recipes, {id = recipe.id, name = recipe.name, available = recipe.available,
+            tinsert(ProfessionKitDB.diagnostic.recipes, {id = recipe.id, name = recipe.name, available = recipe.available,
                 skillEstimate = recipe.skillEstimate, batchPrice = recipe.batchPrice})
         end
-        Message("Diagnostic captured. /reload saves it to Professionator's settings file.")
+        Message("Diagnostic captured. /reload saves it to ProfessionKit's settings file.")
     elseif command == "" then
-        if Visible() then UI.frame:Hide() else addon.Open(ProfessionatorDB.lastProfessionID) end
-    else Message("/professionator opens the window; /professionator native opens the original; /professionator report captures a diagnostic.") end
+        if Visible() then UI.frame:Hide() else addon.Open(ProfessionKitDB.lastProfessionID) end
+    else Message("/professionkit opens the window; /professionkit native opens the original; /professionkit report captures a diagnostic.") end
 end

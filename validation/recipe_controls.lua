@@ -1,5 +1,5 @@
 -- Exercise ranking controls and the crowded Engineering list through the full UI.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
 local function ButtonFor(recipeID)
     for _, button in ipairs(UI.recipeButtons) do
@@ -12,7 +12,7 @@ local function Position(frame)
     return horizontal, vertical
 end
 
-harness.Event("ADDON_LOADED", "Professionator")
+harness.Event("ADDON_LOADED", "ProfessionKit")
 harness.inventory[2770], harness.inventory[2771] = 40, 2
 harness.recipes[2657].info.relativeDifficulty = 1
 addon.Open(186); harness.Advance(1)
@@ -31,6 +31,8 @@ harness.Check("Weighted Prices ranks the full available output value", UI.rows[1
 harness.Check("Price labels remain total available value and per output item across weighting changes", ButtonFor(2657).prices:GetText() == copperPrices and copperPrices == addon.Model.Money(2720) .. " total / " .. addon.Model.Money(68) .. " each")
 
 -- Reproduce the user's five Engineering rows, including unavailable and unpriced recipes.
+ButtonFor(2657):Click()
+UI.pinRecipe:Click()
 harness.professions[2] = {name = "Engineering", id = 202, rank = 75, maximum = 75}
 harness.Item(2835, "Rough Stone", 2, 24, 3)
 harness.Item(2840, "Copper Bar", 10, 0, 109)
@@ -105,4 +107,4 @@ harness.Check("Skill-ups keeps the same row layout and shows both the estimate a
 harness.Snapshot("engineering-skillups")
 UI.multiplyByQuantity:Click()
 harness.Event("PLAYER_LOGOUT")
-harness.Check("Disabling quantity weighting is saved for reload", ProfessionatorDB.multiplyByQuantity == false)
+harness.Check("Disabling quantity weighting is saved for reload", ProfessionKitDB.multiplyByQuantity == false)

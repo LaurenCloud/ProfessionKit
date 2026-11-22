@@ -1,8 +1,8 @@
 -- Drive the real craft buttons, client events and watchdog with low-frequency
 -- between-cast snapshots and timers delivered before events after suspension.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
-harness.Event("ADDON_LOADED", "Professionator")
+harness.Event("ADDON_LOADED", "ProfessionKit")
 addon.Open(186); harness.Advance(1)
 addon.state.selected = 2657; UI.RefreshList()
 UI.quantity:SetText("6")
@@ -19,7 +19,7 @@ harness.casting = true
 harness.Event("UNIT_SPELLCAST_START", "player", "resumed-cast", 2657)
 harness.casting, harness.remainingRecasts = false, 4
 harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "resumed-cast", 2657)
-UI.craftProgress:Run("OnUpdate", 0.1)
+UI.craftingPanel:Run("OnUpdate", 0.1)
 harness.Check("Delayed success still advances the original batch exactly once", request.remaining == 5 and UI.craftStatus:GetText():find("Crafting 2/6", 1, true))
 
 -- The batch may finish on the server while the client is not servicing UI
@@ -28,7 +28,7 @@ harness.remainingRecasts = 0
 harness.ResumeAfter(30)
 harness.Check("An overdue watchdog cannot stop the batch before delayed events arrive", addon.state.craftRequest == request and not addon.state.craftFailure)
 local resumed = false
-for _, entry in ipairs(ProfessionatorDB.craftDiagnostics.entries) do
+for _, entry in ipairs(ProfessionKitDB.craftDiagnostics.entries) do
     if entry.kind == "craft-watch-resumed" and entry.details.timerDelay > 1 then resumed = true end
 end
 harness.Check("Delayed timer recovery is recorded for live diagnosis", resumed)
@@ -52,7 +52,7 @@ UI.create:Click(); harness.casting = false
 harness.Advance(6.2)
 harness.Check("Repeated idle observations still release a genuinely stalled batch", not addon.state.crafting and UI.recipeStatus:GetText() == "Crafting stopped." and UI.create.enabled)
 local timeout
-for _, entry in ipairs(ProfessionatorDB.craftDiagnostics.entries) do if entry.kind == "craft-idle-timeout" then timeout = entry end end
+for _, entry in ipairs(ProfessionKitDB.craftDiagnostics.entries) do if entry.kind == "craft-idle-timeout" then timeout = entry end end
 harness.Check("Idle-stop diagnostics include both queue state and observation duration", timeout and timeout.details.queuedCrafts == 0 and timeout.details.idleSeconds >= 3)
 
 local nativeRemaining = C_TradeSkillUI.GetRemainingRecasts

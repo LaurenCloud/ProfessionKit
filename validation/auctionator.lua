@@ -17,7 +17,7 @@ Auctionator = {
         TableKeys = function(value) local keys = {}; for key in pairs(value) do table.insert(keys, key) end; return keys end,
         PrettyDate = function(timestamp) return os.date("%Y-%m-%d", timestamp) end,
     },
-    API = {v1 = {}, InternalVerifyID = function(caller) assert(caller == "Professionator") end, ComposeError = error},
+    API = {v1 = {}, InternalVerifyID = function(caller) assert(caller == "ProfessionKit") end, ComposeError = error},
 }
 Load("Source/Database/Mixin.lua")
 Load("Source/API/v1/GetAuctionPrice.lua")
@@ -34,7 +34,7 @@ for realm, data in pairs(AUCTIONATOR_PRICE_DATABASE) do
             if itemID and type(value) == "table" then
                 replay.itemCount = replay.itemCount + 1
                 if not Harness.items[itemID] then Harness.Item(itemID, "Recorded item " .. itemID, 0) end
-                local item = ProfessionatorAddon.Client.Item(itemID)
+                local item = ProfessionKitAddon.Client.Item(itemID)
                 assert(item.auction == (value.m > 0 and value.m or nil), "Adapter returned incorrect real cached price for " .. key)
                 if itemID == 2770 or itemID == 2840 or itemID == 4238 or itemID == 4307 then
                     table.insert(replay.items, {itemID = itemID, price = item.auction, age = item.age, recordedUnits = item.quantity})

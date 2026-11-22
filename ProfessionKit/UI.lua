@@ -4,6 +4,7 @@ addon.UI = {}
 local UI = addon.UI
 -- Panels share an inset; recipe tiles use narrower sides to leave room for names.
 local padding = 12
+local craftFailurePadding = 16
 local navigationWidth = 164
 local recipeListWidth = 354
 local detailWidth = 406
@@ -12,14 +13,16 @@ local windowWidth = navigationWidth + workspaceWidth + padding * 2
 local workspaceTop = 24 + padding
 local recipeListTop = 124
 local materialsTop = 88
-local maximumVisibleRecipes = 12
+local defaultMaximumVisibleRecipes = 12
 local recipeHorizontalPadding = 8
 local recipeTileWidth = recipeListWidth - padding * 2
 local recipeRowHeight = 58
+local craftWheelFramesPerMode = 64
 local recipeRowGap = 6
 local recipeRowStride = recipeRowHeight + recipeRowGap
 local recipeSectionHeight = 18 + recipeRowGap
-local campingSectionGap = 8
+local recipeSectionGap = 8
+local pinButtonWidth = 60
 local materialRowHeight = 22 + padding * 2
 local materialRowStride = materialRowHeight + padding
 local professionRowHeight = 28 + padding * 2
@@ -36,7 +39,7 @@ local colors = {
     panel = {0.65, 0.60, 0.51, 1}, inset = {0.34, 0.31, 0.27, 1},
     selected = {0.055, 0.055, 0.055, 1},
     border = {0.56, 0.51, 0.40, 1}, text = {1, 0.97, 0.90},
-    muted = {0.74, 0.70, 0.61}, accent = {1, 0.82, 0},
+    muted = {0.74, 0.70, 0.61}, accent = {1, 0.82, 0}, error = {1, 0.35, 0.30},
     materialsAvailable = {0.49, 0.85, 0.47}, materialsMissing = {1, 0.38, 0.32},
 }
 local panelBackdrop = {
@@ -172,37 +175,81 @@ local function SkillEstimate(recipe)
     return tostring(math.floor(recipe.skillEstimate))
 end
 
-local function RecipeTooltip(button)
-    button:SetScript("OnEnter", function(self)
-        local recipe = self.recipe
-        if not recipe then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(recipe.name)
-        local availability = recipe.available > 0 and ("Materials for " .. recipe.available .. " crafts.") or "Missing materials."
-        GameTooltip:AddLine(availability, unpack(recipe.available > 0 and colors.materialsAvailable or colors.materialsMissing))
-        GameTooltip:AddLine(Model.Difficulty(recipe).label .. " · est. " .. SkillEstimate(recipe) .. " skillups with available materials", 1, 0.82, 0, true)
-        GameTooltip:AddLine("Quantity color shows material availability. Recipe color and arrows show skill-up chance. Skillup totals are estimates.", 0.8, 0.8, 0.8, true)
-        GameTooltip:AddLine("Auction value: " .. Model.Money(recipe.batchPrice) .. " total / " .. Model.Money(recipe.auction) .. " each", 1, 1, 1, true)
-        GameTooltip:AddLine("Each is per output item; total uses all available crafts and minimum output quantity.", 0.8, 0.8, 0.8, true)
-        GameTooltip:Show()
-    end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+local function CreateCraftWheel(parent)
+    local wheel = CreateFrame("Frame", nil, parent)
+    wheel:SetSize(30, 30)
+    wheel:EnableMouse(false)
+    wheel.artwork = wheel:CreateTexture(nil, "OVERLAY")
+    wheel.artwork:SetSize(wheel:GetWidth(), wheel:GetHeight())
+    wheel.artwork:SetPoint("CENTER", wheel, "CENTER", 0, 0)
+    wheel.artwork:SetTexture("Interface\\AddOns\\ProfessionKit\\CraftWheel.tga", nil, nil, "TRILINEAR")
+    wheel:Hide()
+    return wheel
 end
 
-local function ItemTooltip(frame, record)
-    frame:SetScript("OnEnter", function(self)
-        if not self.record or not self.record.link then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetHyperlink(self.record.link)
-        GameTooltip:Show()
-    end)
-    frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    frame.record = record
+local function PaintCraftWheel(progress)
+    local wheel = UI.craftWheel
+    if not wheel:IsShown() then return end
+    -- With no duration, rotate a short arc to show activity without estimating completion.
+    local frame
+    if progress then
+        frame = math.floor(progress * (craftWheelFramesPerMode - 1))
+    else
+        frame = craftWheelFramesPerMode + math.floor(GetTime() * 40) % craftWheelFramesPerMode
+    end
+    if wheel.frameIndex == frame then return end
+    wheel.frameIndex = frame
+    local column, row = frame % 16, math.floor(frame / 16)
+    wheel.artwork:SetTexCoord(column / 16, (column + 1) / 16, row / 8, (row + 1) / 8)
+end
+
+local function ShowLinkTooltip(frame)
+    if not frame.tooltipLink then return end
+    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+    GameTooltip:SetHyperlink(frame.tooltipLink)
+    GameTooltip:Show()
+end
+
+local function HideLinkTooltip(frame)
+    if GameTooltip:IsOwned(frame) then GameTooltip:Hide() end
+end
+
+local function SetTooltipLink(frame, link)
+    frame:SetScript("OnEnter", ShowLinkTooltip)
+    frame:SetScript("OnLeave", HideLinkTooltip)
+    if frame.tooltipLink == link then return end
+    frame.tooltipLink = link
+    if GameTooltip:IsOwned(frame) then
+        if link then ShowLinkTooltip(frame) else GameTooltip:Hide() end
+    end
+end
+
+local function CreateRecipeButton(index)
+    local button = Button(UI.recipeListContent, "", recipeTileWidth, recipeRowHeight, padding, padding + (index - 1) * recipeRowStride, function(self)
+        addon.state.selected = self.recipe.id
+        UI.RefreshList()
+    end, "row")
+    button.label:Hide()
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetSize(22, 22)
+    button.icon:SetPoint("LEFT", recipeHorizontalPadding, 10)
+    button.skillIcon = button:CreateTexture(nil, "ARTWORK")
+    button.count = Text(button, "", 40, 0, 0, 12)
+    button.name = Text(button, "", 250, 0, 0, 12)
+    button.skillEstimate = Text(button, "", 100, 0, 0, 11, colors.muted)
+    button.prices = Text(button, "", 200, 0, 0, 11, colors.muted)
+    button.prices:SetJustifyH("RIGHT")
+    button.count:SetWordWrap(false)
+    button.name:SetWordWrap(false)
+    button.skillEstimate:SetWordWrap(false)
+    button.prices:SetWordWrap(false)
+    button.connector = CreateTabConnector(button)
+    UI.recipeButtons[index] = button
 end
 
 function UI.Build()
     if UI.frame then return end
-    local frame = CreateFrame("Frame", "ProfessionatorFrame", UIParent, "BasicFrameTemplate")
+    local frame = CreateFrame("Frame", "ProfessionKitFrame", UIParent, "BasicFrameTemplate")
     UI.frame = frame
     frame:Hide()
     frame:SetSize(windowWidth, 500)
@@ -211,25 +258,28 @@ function UI.Build()
     frame:SetFrameStrata("HIGH")
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
+    frame:SetResizable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    local function SavePosition()
+        local point, _, relativePoint, x, y = frame:GetPoint()
+        ProfessionKitDB.position = {point, relativePoint, x, y}
+    end
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local point, _, relativePoint, x, y = self:GetPoint()
-        ProfessionatorDB.position = {point, relativePoint, x, y}
+        SavePosition()
     end)
-    frame.TitleText:SetText("Professionator")
+    frame.TitleText:SetText("ProfessionKit")
     SetTextureWithAddressModeOptions(frame.Bg, "Profession-Background-Overview")
     frame.CloseButton:SetScript("OnClick", function() frame:Hide() end)
-    if ProfessionatorDB.position then
-        local position = ProfessionatorDB.position
+    if ProfessionKitDB.position then
+        local position = ProfessionKitDB.position
         frame:ClearAllPoints()
         frame:SetPoint(position[1], UIParent, position[2], position[3], position[4])
     end
-    tinsert(UISpecialFrames, "ProfessionatorFrame")
+    tinsert(UISpecialFrames, "ProfessionKitFrame")
     UI.native = Button(frame, "Original window", 132, 22, windowWidth - 168, 2, function() addon.Native() end)
-    frame:SetScript("OnHide", function() addon.Closed() end)
 
     UI.workspace = Panel(frame, workspaceWidth, 450, navigationWidth + padding, workspaceTop, colors.selected, selectedPanelBackdrop)
     UI.navigation = Panel(frame, navigationWidth, 450, padding, workspaceTop)
@@ -266,12 +316,12 @@ function UI.Build()
     UI.search:SetScript("OnTextChanged", function(self)
         addon.state.query = self:GetText()
         UI.searchPlaceholder:SetShown(self:GetText() == "")
-        UI.offset = 0
+        UI.recipeScrollOffset = 0
         UI.RefreshList()
     end)
     Text(UI.workspace, "Sort", 28, padding, 91, 11, colors.muted)
-    UI.skillSort = Button(UI.workspace, "Skill-ups", 78, 28, 44, 84, function() addon.state.sort = "skill"; UI.offset = 0; UI.RefreshList() end, "row")
-    UI.priceSort = Button(UI.workspace, "Prices", 62, 28, 128, 84, function() addon.state.sort = "auction"; UI.offset = 0; UI.RefreshList() end, "row")
+    UI.skillSort = Button(UI.workspace, "Skill-ups", 78, 28, 44, 84, function() addon.state.sort = "skill"; UI.recipeScrollOffset = 0; UI.RefreshList() end, "row")
+    UI.priceSort = Button(UI.workspace, "Prices", 62, 28, 128, 84, function() addon.state.sort = "auction"; UI.recipeScrollOffset = 0; UI.RefreshList() end, "row")
     Hint(UI.skillSort, "Estimated skill-ups", "Ranks one craft, or all available crafts when × Quantity is checked. Ranking weights: orange 1, yellow 0.5, green 0.2 per craft. These are estimates, not measured probabilities. Capped by your trained skill limit and the recipe's gray threshold when known. Row estimates always show the total from your available materials.")
     Hint(UI.priceSort, "Auction value", "Ranks the outputs of one craft, or all available crafts when × Quantity is checked. Uses minimum output for variable yields. This is gross listing value, not profit or guaranteed sales. Row totals always use your available materials; each is per output item. Missing prices sort last.")
     UI.multiplyByQuantity = CreateFrame("CheckButton", nil, UI.workspace, "UICheckButtonTemplate")
@@ -281,43 +331,30 @@ function UI.Build()
     Text(UI.workspace, "× Quantity", 108, 234, 91, 11)
     UI.multiplyByQuantity:SetScript("OnClick", function(self)
         addon.state.multiplyByQuantity = self:GetChecked()
-        UI.offset = 0
+        UI.recipeScrollOffset = 0
         UI.RefreshList()
     end)
     Hint(UI.multiplyByQuantity, "Multiply ranking by quantity", "Checked: rank the full batch your materials can supply. Unchecked: rank one craft, including all items it produces. All learned recipes stay visible. Tied scores still sort by available quantity. Counts and row totals continue to describe your available materials.")
     UI.list = Panel(UI.workspace, recipeListWidth, 490, padding, recipeListTop, colors.inset)
     UI.list:EnableMouseWheel(true)
     UI.list:SetScript("OnMouseWheel", function(_, delta)
-        UI.offset = math.max(0, math.min(math.max(0, #(UI.rows or {}) - UI.visibleRecipeCount), (UI.offset or 0) - delta * 2))
-        UI.RefreshList()
+        UI.recipeScrollOffset = (UI.recipeScrollOffset or 0) - delta * 2 * recipeRowStride
+        UI.LayoutWindow()
     end)
+    UI.recipeViewport = CreateFrame("Frame", nil, UI.list)
+    UI.recipeViewport:SetPoint("TOPLEFT", UI.list, "TOPLEFT", 0, -padding)
+    -- Clip vertically while leaving room for the selected tab to meet the detail panel.
+    UI.recipeViewport:SetWidth(recipeListWidth + padding + 6)
+    UI.recipeViewport:SetClipsChildren(true)
+    UI.recipeListContent = CreateFrame("Frame", nil, UI.recipeViewport)
+    UI.recipeListContent:SetAllPoints(UI.recipeViewport)
     UI.recipeButtons = {}
-    UI.recipeHeadings = {
-        Text(UI.list, "Recipes", recipeListWidth - padding * 2, padding, padding, 13, colors.accent),
-        Text(UI.list, "Camping", recipeListWidth - padding * 2, padding, padding, 13, colors.accent),
-    }
-    for index = 1, maximumVisibleRecipes do
-        local button = Button(UI.list, "", recipeTileWidth, recipeRowHeight, padding, padding + (index - 1) * recipeRowStride, function(self)
-            addon.state.selected = self.recipe.id
-            UI.RefreshList()
-        end, "row")
-        button.label:Hide()
-        button.icon = button:CreateTexture(nil, "ARTWORK")
-        button.icon:SetSize(22, 22)
-        button.icon:SetPoint("LEFT", recipeHorizontalPadding, 10)
-        button.skillIcon = button:CreateTexture(nil, "ARTWORK")
-        button.count = Text(button, "", 40, 0, 0, 12)
-        button.name = Text(button, "", 250, 0, 0, 12)
-        button.skillEstimate = Text(button, "", 100, 0, 0, 11, colors.muted)
-        button.prices = Text(button, "", 200, 0, 0, 11, colors.muted)
-        button.prices:SetJustifyH("RIGHT")
-        button.count:SetWordWrap(false)
-        button.name:SetWordWrap(false)
-        button.skillEstimate:SetWordWrap(false)
-        button.prices:SetWordWrap(false)
-        RecipeTooltip(button)
-        UI.recipeButtons[index] = button
+    UI.recipeHeadings = {}
+    for _, section in ipairs({"Pinned", "Recipes", "Camping"}) do
+        UI.recipeHeadings[section] = Text(UI.recipeListContent, section, recipeListWidth - padding * 2, padding, padding, 13, colors.accent)
     end
+    for index = 1, defaultMaximumVisibleRecipes do CreateRecipeButton(index) end
+    UI.craftWheel = CreateCraftWheel(UI.list)
     UI.listEmpty = Text(UI.list, "Open a profession to load recipes.", recipeListWidth - 32, 16, 16, 13, colors.muted)
     UI.listCount = Text(UI.workspace, "", recipeListWidth, 14, 620, 10, colors.muted)
     UI.detail = Panel(UI.workspace, detailWidth, 366, recipeListWidth + padding * 2, padding, colors.selected, selectedPanelBackdrop)
@@ -330,6 +367,13 @@ function UI.Build()
     UI.recipeCategory:SetWordWrap(false)
     UI.market = Text(UI.detail, "", detailWidth - auctionColumn - padding, auctionColumn, 14, 11, colors.muted)
     UI.market:SetJustifyH("RIGHT")
+    UI.pinRecipe = Button(UI.detail, "Pin", pinButtonWidth, 20, detailWidth - padding - pinButtonWidth, 40, function()
+        local recipe = UI.selectedRecipe
+        if not recipe then return end
+        local pinnedRecipes = ProfessionKitDB.pinnedRecipes
+        if pinnedRecipes[recipe.id] then pinnedRecipes[recipe.id] = nil else pinnedRecipes[recipe.id] = true end
+        UI.RefreshList(true)
+    end)
     Text(UI.detail, "Materials · owned / needed", vendorColumn - padding * 2, padding, 62, 11, colors.muted)
     Text(UI.detail, "Vendor buy", 76, vendorColumn, 62, 11, colors.muted)
     Text(UI.detail, "Auction", 80, auctionColumn, 62, 11, colors.muted)
@@ -349,7 +393,7 @@ function UI.Build()
     -- Trim transparent margins so the gold arrow fills the existing connector space.
     arrow:SetTexCoord(4 / 32, 27 / 32, 4 / 32, 27 / 32)
     arrow:SetRotation(math.pi)
-    UI.requirements = Text(UI.detail, "", detailWidth - padding * 2, padding, 248, 13, {1, 0.35, 0.30})
+    UI.requirements = Text(UI.detail, "", detailWidth - padding * 2, padding, 248, 13, colors.error)
     UI.outputHeading = Text(UI.detail, "Output · per craft", vendorColumn - padding * 2, padding, 152, 11, colors.muted)
     UI.vendorHeading = Text(UI.detail, "Vendor sell", 76, vendorColumn, 152, 11, colors.muted)
     UI.auctionHeading = Text(UI.detail, "Auction", 80, auctionColumn, 152, 11, colors.muted)
@@ -416,14 +460,45 @@ function UI.Build()
     UI.craftRemaining:SetShadowColor(0, 0, 0, 1)
     UI.craftRemaining:SetShadowOffset(1, -1)
     UI.craftProgress:Hide()
-    UI.craftProgress:SetScript("OnUpdate", function(self, elapsed)
+    UI.craftingPanel:SetScript("OnUpdate", function(self, elapsed)
         self.elapsed = (self.elapsed or 0) + elapsed
         if self.elapsed < 0.05 then return end
         self.elapsed = 0
         UI.RefreshCraftProgress()
     end)
     Hint(UI.craftProgress, "Batch progress", "Estimated progress through the entire batch, including the current craft. Uses the same live cast timing as the remaining-time estimate.")
-    for _, button in ipairs(UI.recipeButtons) do button.connector = CreateTabConnector(button) end
+    local grip = CreateFrame("Button", nil, frame)
+    UI.heightGrip = grip
+    grip:SetSize(18, 18)
+    grip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    Hint(grip, "Resize height", "Drag up or down to change the window height.")
+    grip:RegisterForDrag("LeftButton")
+    grip:SetScript("OnDragStart", function()
+        UI.resizeStartHeight = frame:GetHeight()
+        frame:StartSizing("BOTTOM")
+    end)
+    local function FinishResize()
+        if not UI.resizeStartHeight then return end
+        frame:StopMovingOrSizing()
+        local height = math.floor(frame:GetHeight() + 0.5)
+        if height ~= math.floor(UI.resizeStartHeight + 0.5) then
+            ProfessionKitDB.windowHeight = height
+            SavePosition()
+        end
+        UI.resizeStartHeight = nil
+        UI.LayoutWindow()
+    end
+    grip:SetScript("OnDragStop", FinishResize)
+    frame:HookScript("OnSizeChanged", function()
+        if UI.resizeStartHeight then UI.LayoutWindow() end
+    end)
+    frame:SetScript("OnHide", function()
+        FinishResize()
+        addon.Closed()
+    end)
 end
 
 function UI.MakeItemRow(parent, x, y)
@@ -450,7 +525,7 @@ end
 
 function UI.ToggleSettings()
     if not UI.settings then
-        local frame = CreateFrame("Frame", "ProfessionatorSettingsFrame", UIParent, "BasicFrameTemplate")
+        local frame = CreateFrame("Frame", "ProfessionKitSettingsFrame", UIParent, "BasicFrameTemplate")
         UI.settings = frame
         frame:Hide()
         frame:SetSize(356, 132)
@@ -458,10 +533,10 @@ function UI.ToggleSettings()
         frame:SetFrameStrata("DIALOG")
         frame:SetClampedToScreen(true)
         frame:EnableMouse(true)
-        frame.TitleText:SetText("Professionator settings")
+        frame.TitleText:SetText("ProfessionKit settings")
         SetTextureWithAddressModeOptions(frame.Bg, "Profession-Background-Overview")
         frame.CloseButton:SetScript("OnClick", function() frame:Hide() end)
-        tinsert(UISpecialFrames, "ProfessionatorSettingsFrame")
+        tinsert(UISpecialFrames, "ProfessionKitSettingsFrame")
 
         local checkbox = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
         UI.replaceNativeCheckbox = checkbox
@@ -471,15 +546,56 @@ function UI.ToggleSettings()
         local label = Text(frame, "Replace the normal professions window", 300, 44, 45, 12)
         label:SetWordWrap(false)
         checkbox:SetScript("OnClick", function(self)
-            ProfessionatorDB.replaceNative = self:GetChecked() and true or false
+            ProfessionKitDB.replaceNative = self:GetChecked() and true or false
         end)
-        Text(frame, "Applies the next time you open a profession.\nLeft-click the minimap icon to open Professionator anytime.", 332, padding, 78, 11, colors.muted)
+        Text(frame, "Applies the next time you open a profession.\nLeft-click the minimap icon to open ProfessionKit anytime.", 332, padding, 78, 11, colors.muted)
     end
-    UI.replaceNativeCheckbox:SetChecked(ProfessionatorDB.replaceNative)
+    UI.replaceNativeCheckbox:SetChecked(ProfessionKitDB.replaceNative)
     UI.settings:SetShown(not UI.settings:IsShown())
 end
 
-function UI.Layout(recipe)
+local function MaximumWindowHeight()
+    local widthScale = math.min(1, (UIParent:GetWidth() - 40) / windowWidth)
+    return (UIParent:GetHeight() - 60) / widthScale
+end
+
+local function PreferredWindowHeight()
+    if UI.resizeStartHeight then return UI.frame:GetHeight() end
+    return ProfessionKitDB.windowHeight
+end
+
+function UI.LayoutWindow()
+    local navigationBottom = professionListTop + (UI.professionCount or 0) * professionRowStride
+    local craftingHeight = addon.state.craftRequest and craftingPanelHeight + padding or 0
+    local minimumHeight = workspaceTop + padding + math.max(210, UI.detailContentHeight + padding * 2 + craftingHeight, navigationBottom)
+    local maximumHeight = math.max(minimumHeight, MaximumWindowHeight())
+    if UI.minimumWindowHeight ~= minimumHeight or UI.maximumWindowHeight ~= maximumHeight then
+        UI.minimumWindowHeight, UI.maximumWindowHeight = minimumHeight, maximumHeight
+        UI.frame:SetResizeBounds(windowWidth, minimumHeight, windowWidth, maximumHeight)
+    end
+    local contentHeight = UI.recipeContentHeight
+    local automaticListHeight = math.min(contentHeight, padding * 2 + defaultMaximumVisibleRecipes * recipeRowStride - recipeRowGap + UI.recipeHeadingSpace)
+    local automaticHeight = workspaceTop + padding + recipeListTop + automaticListHeight + padding
+    local windowHeight = math.max(minimumHeight, math.min(PreferredWindowHeight() or automaticHeight, maximumHeight))
+    local workspaceHeight = windowHeight - workspaceTop - padding
+    local availableListHeight = workspaceHeight - recipeListTop - padding
+    local canScroll = contentHeight > availableListHeight
+    local listHeight = canScroll and availableListHeight - 14 - padding or contentHeight
+    UI.list:SetHeight(listHeight)
+    UI.recipeViewport:SetHeight(listHeight - padding * 2)
+    Place(UI.listCount, UI.workspace, padding, recipeListTop + listHeight + padding)
+    UI.listCount:SetShown(canScroll)
+    local maximumDetailHeight = workspaceHeight - padding * 2 - craftingHeight
+    UI.RenderRecipeRows(maximumDetailHeight)
+    UI.detail:SetHeight(math.max(UI.detailContentHeight, UI.selectedRecipeBottom or 0))
+    UI.workspace:SetHeight(workspaceHeight)
+    UI.navigation:SetHeight(workspaceHeight)
+    if not UI.resizeStartHeight then UI.frame:SetHeight(windowHeight) end
+    UI.frame:SetScale(math.min(1, (UIParent:GetWidth() - 40) / windowWidth, (UIParent:GetHeight() - 60) / windowHeight))
+    UI.RefreshCraftPanel()
+end
+
+function UI.Layout(recipe, statusPadding)
     local reagentCount = recipe and #recipe.reagents or 0
     local materialGap = materialRowStride - materialRowHeight
     local contentHeight = math.max(materialRowHeight, reagentCount * materialRowStride - materialGap)
@@ -519,26 +635,14 @@ function UI.Layout(recipe)
     Place(UI.quantity.background, UI.detail, 290, controlsTop)
     Place(UI.plus, UI.detail, 354, controlsTop)
     Place(UI.requirements, UI.detail, padding, controlsTop + padding)
-    local statusTop = controlsTop + controlHeight + padding
+    local statusTop = controlsTop + controlHeight + statusPadding
     Place(UI.recipeStatus, UI.detail, padding, statusTop)
-    local detailHeight = statusTop + (UI.recipeStatus:GetText() ~= "" and 14 + padding or 0)
-    -- Keep the detail panel behind a selected tab near the bottom of a long list.
-    detailHeight = math.max(detailHeight, UI.selectedRecipeBottom or 0)
-    UI.detail:SetHeight(detailHeight)
-
-    local listHeight = UI.recipeContentHeight or 74
-    UI.list:SetHeight(listHeight)
-    Place(UI.listCount, UI.workspace, padding, recipeListTop + listHeight + padding)
-    UI.listCount:SetShown(#(UI.rows or {}) > UI.visibleRecipeCount)
-    local listBottom = recipeListTop + listHeight + padding + (#(UI.rows or {}) > UI.visibleRecipeCount and 14 + padding or 0)
-    local navigationBottom = professionListTop + (UI.professionCount or 0) * professionRowStride
-    local craftingHeight = UI.craftingPanel:IsShown() and UI.craftingPanel:GetHeight() + padding or 0
-    local workspaceHeight = math.max(210, detailHeight + padding * 2 + craftingHeight, listBottom, navigationBottom)
-    UI.workspace:SetHeight(workspaceHeight)
-    UI.navigation:SetHeight(workspaceHeight)
-    local windowHeight = workspaceHeight + workspaceTop + padding
-    UI.frame:SetHeight(windowHeight)
-    UI.frame:SetScale(math.min(1, (UIParent:GetWidth() - 40) / windowWidth, (UIParent:GetHeight() - 60) / windowHeight))
+    local detailHeight = statusTop
+    if UI.recipeStatus:GetText() ~= "" then
+        detailHeight = detailHeight + math.max(14, UI.recipeStatus:GetStringHeight()) + statusPadding
+    end
+    UI.detailContentHeight = detailHeight
+    UI.LayoutWindow()
 end
 
 local function CraftStatus(request)
@@ -554,8 +658,9 @@ end
 
 function UI.RefreshCraftProgress()
     local request = addon.state.craftRequest
-    if not request or not UI.craftProgress:IsShown() then return end
+    if not request or not request.started then return end
     local status, progress, remainingText = CraftStatus(request)
+    PaintCraftWheel(progress)
     if progress ~= nil then
         UI.craftProgress:SetValue(progress)
         UI.craftStatus:SetText(status)
@@ -567,6 +672,20 @@ function UI.RefreshCraftPanel()
     local request = addon.state.craftRequest
     local status, progress, remainingText = "", nil, nil
     if request then status, progress, remainingText = CraftStatus(request) end
+    local activeButton
+    if request and request.started and request.professionID == addon.state.professionID then
+        for _, button in ipairs(UI.recipeButtons) do
+            if button.recipe and button.recipe.id == request.recipeID then activeButton = button; break end
+        end
+    end
+    local wheel = UI.craftWheel
+    if activeButton and wheel:GetParent() ~= activeButton then
+        wheel:SetParent(activeButton)
+        wheel:ClearAllPoints()
+        wheel:SetPoint("CENTER", activeButton.icon, "CENTER", 0, 0)
+    end
+    wheel:SetShown(activeButton ~= nil)
+    PaintCraftWheel(progress)
     UI.craftingPanel:SetShown(request ~= nil)
     UI.craftName:SetText(request and request.recipeName or "")
     UI.craftIcon:SetTexture(request and request.icon or nil)
@@ -582,20 +701,8 @@ function UI.RefreshCraftPanel()
     UI.craftStatus:SetWidth(detailWidth - statusLeft - padding)
 end
 
-local function VisibleRecipeCount(rows)
-    local availableHeight = UIParent:GetHeight() - 60 - workspaceTop - padding * 3 - recipeListTop - 26
-    -- Reserve the fixed batch panel while crafting so changing selection does
-    -- not change list capacity or shrink the whole window on smaller screens.
-    if addon.state.craftRequest then availableHeight = availableHeight - (craftingPanelHeight + padding) end
-    local hasCamping = #rows > 0 and rows[#rows].isCamping
-    local sectionCount = hasCamping and (rows[1].isCamping and 1 or 2) or 0
-    local sectionSpacing = sectionCount * recipeSectionHeight + (sectionCount == 2 and campingSectionGap or 0)
-    return math.max(1, math.min(maximumVisibleRecipes, math.floor((availableHeight - padding * 2 - sectionSpacing + recipeRowGap) / recipeRowStride)))
-end
-
 function UI.RefreshCraftButtons()
     if not UI.create then return end
-    if UI.rows and UI.visibleRecipeCount ~= VisibleRecipeCount(UI.rows) then UI.RefreshList(); return end
     local recipe = UI.selectedRecipe
     local current = addon.Client.OpenInfo()
     local count = recipe and not recipe.canCreateMultiple and 1 or tonumber(UI.quantity:GetText()) or 0
@@ -618,58 +725,110 @@ function UI.RefreshCraftButtons()
     UI.requirements:SetText(#missing > 0 and ("Requires: " .. table.concat(missing, ", ")) or "")
     if reason and reason:match("^Requires:") then reason = nil end
     local request, failure = addon.state.craftRequest, addon.state.craftFailure
-    local status = failure and recipe and failure.recipeID == recipe.id and failure.message or reason or ""
+    local failureMessage = failure and recipe and failure.recipeID == recipe.id and failure.message
+    local showFailure = failureMessage and #missing == 0
+    local status = failureMessage or reason or ""
     if not request and status == "" and recipe and recipe.castSeconds and batchCount > 0 then
         status = (recipe.canCreateMultiple and "Create all: est. " or "Est. ") .. Model.Duration(recipe.castSeconds * batchCount) .. " total"
         if recipe.charges then status = status .. " · " .. recipe.charges .. " charges available" end
     end
+    UI.recipeStatus:SetFont(STANDARD_TEXT_FONT, failureMessage and 14 or 11, failureMessage and "OUTLINE" or "")
+    UI.recipeStatus:SetTextColor(unpack(failureMessage and colors.error or colors.muted))
+    UI.recipeStatus:SetJustifyH(showFailure and "CENTER" or "LEFT")
     UI.recipeStatus:SetText(#missing == 0 and status or "")
     UI.targetSlot:Available(not addon.state.crafting and not InCombatLockdown())
     UI.equipped:Available(not addon.state.crafting and not InCombatLockdown())
-    UI.RefreshCraftPanel()
-    UI.Layout(recipe)
+    UI.Layout(recipe, showFailure and craftFailurePadding or padding)
 end
 
-function UI.RefreshList()
+function UI.RefreshList(revealSelection)
     if not UI.frame then return end
     local state = addon.state
-    UI.rows = Model.Select(state.recipes, state.query, state.sort, state.multiplyByQuantity)
-    local hasCamping = #UI.rows > 0 and UI.rows[#UI.rows].isCamping
-    UI.visibleRecipeCount = VisibleRecipeCount(UI.rows)
-    UI.offset = math.max(0, math.min(UI.offset or 0, math.max(0, #UI.rows - UI.visibleRecipeCount)))
+    UI.rows = Model.Select(state.recipes, state.query, state.sort, state.multiplyByQuantity, ProfessionKitDB.pinnedRecipes)
+    local showHeadings = #UI.rows > 0 and (UI.rows[1].section ~= "Recipes" or UI.rows[#UI.rows].section ~= "Recipes")
+    local rowTop, previousSection = 0, nil
+    local selectedIndex
+    UI.recipeTops, UI.headingTops, UI.recipeHeadingSpace = {}, {}, 0
+    for index, recipe in ipairs(UI.rows) do
+        if showHeadings and recipe.section ~= previousSection then
+            local gap = previousSection and recipeSectionGap or 0
+            UI.headingTops[recipe.section] = rowTop + gap
+            rowTop = rowTop + gap + recipeSectionHeight
+            UI.recipeHeadingSpace = UI.recipeHeadingSpace + gap + recipeSectionHeight
+        end
+        previousSection = recipe.section
+        UI.recipeTops[index] = rowTop
+        rowTop = rowTop + recipeRowStride
+        if recipe.id == state.selected then selectedIndex = index end
+    end
+    UI.recipeContentHeight = #UI.rows > 0 and rowTop - recipeRowGap + padding * 2 or 74
+    UI.revealRecipeIndex = revealSelection and selectedIndex or nil
+    UI.recipeRowsDirty = true
     UI.skillSort:Active(state.sort == "skill")
     UI.priceSort:Active(state.sort == "auction")
     UI.multiplyByQuantity:SetChecked(state.multiplyByQuantity)
-    local selected
-    for _, recipe in ipairs(UI.rows) do if recipe.id == state.selected then selected = recipe end end
-    -- Regular recipes sort first; camping may be selected automatically when it is the only result.
-    selected = selected or UI.rows[1]
+    local selected = UI.rows[selectedIndex or 1]
     state.selected = selected and selected.id or nil
+    UI.listEmpty:SetShown(#UI.rows == 0)
+    UI.listEmpty:SetText(state.loading and "Loading recipes…" or (#state.recipes == 0 and "No crafting recipes here. Gathering journals are available in the original window." or "No recipes match. Try clearing the search."))
+    UI.Detail(selected)
+end
+
+function UI.RenderRecipeRows(maximumDetailHeight)
+    local height = UI.recipeViewport:GetHeight()
+    local offset = UI.recipeScrollOffset or 0
+    if UI.revealRecipeIndex then
+        local index = UI.revealRecipeIndex
+        local top = UI.recipeTops[index]
+        local headingTop = UI.headingTops[UI.rows[index].section]
+        local revealTop = headingTop and headingTop + recipeSectionHeight == top and headingTop or top
+        offset = math.min(revealTop, math.max(offset, top + recipeRowHeight - height))
+        UI.revealRecipeIndex = nil
+    end
+    offset = math.max(0, math.min(offset, UI.recipeContentHeight - padding * 2 - height))
+    UI.recipeScrollOffset = offset
+    if not UI.recipeRowsDirty and UI.renderedOffset == offset and UI.renderedHeight == height and UI.renderedDetailLimit == maximumDetailHeight then return end
+    UI.recipeRowsDirty = false
+    UI.renderedOffset, UI.renderedHeight, UI.renderedDetailLimit = offset, height, maximumDetailHeight
     UI.selectedRecipeBottom = nil
-    for _, heading in ipairs(UI.recipeHeadings) do heading:Hide() end
-    local rowTop, previousSection = padding, nil
+    for section, heading in pairs(UI.recipeHeadings) do
+        local top = UI.headingTops[section]
+        local visible = top and top < offset + height and top + recipeSectionHeight > offset
+        heading:SetShown(visible and true or false)
+        if visible then Place(heading, UI.list, padding, padding + top - offset) end
+    end
+    local firstIndex, visibleCount = 1, 0
+    for index, top in ipairs(UI.recipeTops) do
+        if top >= offset + height then break end
+        if top + recipeRowHeight > offset then
+            if visibleCount == 0 then firstIndex = index end
+            visibleCount = visibleCount + 1
+        end
+    end
+    UI.visibleRecipeCount = visibleCount
+    for index = #UI.recipeButtons + 1, visibleCount do CreateRecipeButton(index) end
     for index, button in ipairs(UI.recipeButtons) do
-        local recipe = index <= UI.visibleRecipeCount and UI.rows[index + UI.offset] or nil
+        local rowIndex = firstIndex + index - 1
+        local recipe = index <= visibleCount and UI.rows[rowIndex] or nil
+        button.recipe = recipe
+        local tooltipLink
+        if recipe then
+            tooltipLink = recipe.outputLink
+            if recipe.isEnchant or not tooltipLink then tooltipLink = "spell:" .. recipe.id end
+        end
+        SetTooltipLink(button, tooltipLink)
         button:SetShown(recipe ~= nil)
         if recipe then
-            local section = recipe.isCamping and 2 or 1
-            if hasCamping and section ~= previousSection then
-                if section == 2 and previousSection == 1 then rowTop = rowTop + campingSectionGap end
-                local heading = UI.recipeHeadings[section]
-                Place(heading, UI.list, padding, rowTop)
-                heading:Show()
-                rowTop = rowTop + recipeSectionHeight
-            end
-            previousSection = section
-            Place(button, UI.list, padding, rowTop)
-            button:SetHeight(recipeRowHeight)
-            rowTop = rowTop + recipeRowStride
-            local isSelected = recipe == selected
-            -- Extend only the tab background; text columns stay aligned across rows.
-            button:SetWidth(recipeTileWidth + (isSelected and padding * 2 or 0))
-            button.connector:SetShown(isSelected)
-            if isSelected then UI.selectedRecipeBottom = recipeListTop + rowTop - recipeRowGap end
-            button.recipe = recipe
+            local top = UI.recipeTops[rowIndex] - offset
+            Place(button, UI.list, padding, padding + top)
+            button:SetHitRectInsets(0, 0, math.max(0, -top), math.max(0, top + recipeRowHeight - height))
+            local isSelected = recipe.id == addon.state.selected
+            local visibleBottom = recipeListTop + padding + math.min(top + recipeRowHeight, height)
+            -- A low row beside an active batch still has its selection outline.
+            local connectsToDetail = isSelected and visibleBottom <= maximumDetailHeight
+            button:SetWidth(recipeTileWidth + (connectsToDetail and padding * 2 or 0))
+            button.connector:SetShown(connectsToDetail)
+            if connectsToDetail then UI.selectedRecipeBottom = visibleBottom end
             button.icon:SetTexture(recipe.icon or 134400)
             local atlas = recipe.canSkillUp and skillAtlases[recipe.difficulty]
             button.skillIcon:SetShown(not not atlas)
@@ -702,11 +861,7 @@ function UI.RefreshList()
             button:Active(isSelected)
         end
     end
-    UI.recipeContentHeight = #UI.rows > 0 and rowTop - recipeRowGap + padding or 74
-    UI.listEmpty:SetShown(#UI.rows == 0)
-    UI.listEmpty:SetText(state.loading and "Loading recipes…" or (#state.recipes == 0 and "No crafting recipes here. Gathering journals are available in the original window." or "No recipes match. Try clearing the search."))
-    UI.listCount:SetText((UI.offset + 1) .. "–" .. math.min(#UI.rows, UI.offset + UI.visibleRecipeCount) .. " of " .. #UI.rows)
-    UI.Detail(selected)
+    UI.listCount:SetText(firstIndex .. "–" .. (firstIndex + visibleCount - 1) .. " of " .. #UI.rows)
 end
 
 function UI.Detail(recipe)
@@ -717,6 +872,8 @@ function UI.Detail(recipe)
         if UI.equippedPicker then UI.equippedPicker:Hide() end
     end
     UI.selectedRecipe = recipe
+    UI.pinRecipe:SetShown(recipe ~= nil)
+    UI.pinRecipe.label:SetText(recipe and ProfessionKitDB.pinnedRecipes[recipe.id] and "Unpin" or "Pin")
     UI.conversionArrow:SetShown(recipe ~= nil)
     UI.recipeTitle:SetText(recipe and recipe.outputName or "Select a recipe")
     UI.recipeCategory:SetText(recipe and recipe.category or "")
@@ -731,12 +888,12 @@ function UI.Detail(recipe)
             row.name:SetTextColor(unpack(reagent.owned >= reagent.required and colors.text or {1, 0.45, 0.4}))
             row.vendor:SetText(Model.Money(reagent.vendorBuy))
             row.auction:SetText(Model.Money(reagent.auction))
-            ItemTooltip(row, reagent)
+            SetTooltipLink(row, reagent.link)
             row:Show()
         end
     end
     local isEnchant = recipe and recipe.isEnchant or false
-    UI.recipeTitle:SetWidth(isEnchant and detailWidth - 62 - padding or auctionColumn - 62 - padding)
+    UI.recipeTitle:SetWidth(isEnchant and detailWidth - 62 - pinButtonWidth - padding * 2 or auctionColumn - 62 - padding)
     UI.recipeTitle:SetWordWrap(isEnchant)
     UI.recipeTitle:SetHeight(isEnchant and 44 or 24)
     UI.recipeCategory:SetShown(not isEnchant)
@@ -766,7 +923,7 @@ function UI.Detail(recipe)
         UI.outputRow.name:SetText(quantity .. "  " .. recipe.outputName)
         UI.outputRow.vendor:SetText(Model.Money(recipe.vendorTotal))
         UI.outputRow.auction:SetText(recipe.bound and "Soulbound" or Model.Money(recipe.auctionTotal))
-        ItemTooltip(UI.outputRow, {link = recipe.outputLink})
+        SetTooltipLink(UI.outputRow, recipe.outputLink)
     end
     local priceAge = ""
     if recipe and recipe.auction and recipe.age ~= nil then
@@ -822,7 +979,7 @@ function UI.ToggleEquippedPicker()
         button.label:SetText(item.name)
         button.icon:SetTexture(item.icon or 134400)
         button:Show()
-        ItemTooltip(button, item)
+        SetTooltipLink(button, item.link)
     end
     frame.empty:SetShown(#items == 0)
     frame.scroll:SetShown(#items > 0)

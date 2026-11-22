@@ -1,15 +1,15 @@
 -- Fresh login with replacement previously disabled: drive the actual launcher,
 -- checkbox, native profession entry point, delayed load and fallback callbacks.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
-harness.Event("ADDON_LOADED", "Professionator")
-harness.Check("Saved disabled preference survives initialization", ProfessionatorDB.replaceNative == false)
+harness.Event("ADDON_LOADED", "ProfessionKit")
+harness.Check("Saved disabled preference survives initialization", ProfessionKitDB.replaceNative == false)
 C_TradeSkillUI.OpenTradeSkill(186); harness.Advance(1)
 harness.Check("Disabled replacement leaves normal profession window visible", ProfessionsFrame:IsShown() and ProfessionsFrame:GetAlpha() == 1 and not UI.frame)
 addon.launcher:Click("RightButton")
 harness.Check("Right-click opens settings without replacing current window", UI.settings:IsShown() and not UI.replaceNativeCheckbox:GetChecked() and ProfessionsFrame:IsShown())
 UI.replaceNativeCheckbox:Click()
-harness.Check("Checkbox enables saved replacement preference", ProfessionatorDB.replaceNative == true and UI.replaceNativeCheckbox:GetChecked())
+harness.Check("Checkbox enables saved replacement preference", ProfessionKitDB.replaceNative == true and UI.replaceNativeCheckbox:GetChecked())
 harness.Snapshot("minimap-settings")
 addon.launcher:Click("RightButton")
 harness.Check("Right-click also dismisses settings", not UI.settings:IsShown())
@@ -25,13 +25,13 @@ harness.Check("Original-window fallback does not override future replacement pre
 addon.launcher:Click("RightButton")
 UI.replaceNativeCheckbox:Click()
 UI.settings.CloseButton:Click()
-harness.Check("Disabling replacement saves false without disrupting the active profession", ProfessionatorDB.replaceNative == false and UI.frame:IsShown() and harness.ready)
+harness.Check("Disabling replacement saves false without disrupting the active profession", ProfessionKitDB.replaceNative == false and UI.frame:IsShown() and harness.ready)
 addon.launcher:Click()
 C_TradeSkillUI.OpenTradeSkill(197); harness.Advance(1)
 harness.Check("Next normal open honors the newly disabled setting", ProfessionsFrame:IsShown() and not UI.frame:IsShown())
 addon.launcher:Click(); harness.Advance(1)
-harness.Check("Left-click still opens Professionator with replacement disabled", UI.frame:IsShown() and not ProfessionsFrame:IsShown() and ProfessionatorDB.replaceNative == false)
+harness.Check("Left-click still opens ProfessionKit with replacement disabled", UI.frame:IsShown() and not ProfessionsFrame:IsShown() and ProfessionKitDB.replaceNative == false)
 UI.professionButtons[1]:Click(); harness.Advance(1)
-harness.Check("Manual Professionator session still switches professions with replacement disabled", addon.state.professionID == 186 and UI.frame:IsShown() and not ProfessionsFrame:IsShown() and harness.ready)
+harness.Check("Manual ProfessionKit session still switches professions with replacement disabled", addon.state.professionID == 186 and UI.frame:IsShown() and not ProfessionsFrame:IsShown() and harness.ready)
 harness.Event("PLAYER_LOGOUT")
-harness.Check("Disabled preference remains saved at logout", ProfessionatorDB.replaceNative == false)
+harness.Check("Disabled preference remains saved at logout", ProfessionKitDB.replaceNative == false)

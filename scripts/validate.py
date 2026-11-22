@@ -17,9 +17,9 @@ from PIL import Image, ImageDraw, ImageFont
 def plain(value):
     if hasattr(value, "items"):
         entries = list(value.items())
-        if entries and all(isinstance(key, int) for key, _ in entries):
+        if entries and all(isinstance(key, int) and 1 <= key <= len(entries) for key, _ in entries):
             return [plain(value[index]) for index in range(1, len(entries) + 1)]
-        return {str(key): plain(item) for key, item in entries}
+        return {key: plain(item) for key, item in entries}
     return value
 
 
@@ -59,7 +59,7 @@ def render_scene(scene, destination):
     def color(channels, default):
         return tuple(round(channel * 255) for channel in channels[:3]) if channels else default
 
-    for widget in scene:
+    def draw_widget(widget, image, draw):
         x, y, width, height = rectangle(widget)
         if widget.get("backgroundColor"):
             background = color(widget["backgroundColor"], (30, 40, 50))
@@ -74,6 +74,9 @@ def render_scene(scene, destination):
             draw.rectangle((x, y, x + width, y + height), fill=background, outline=border)
         if widget.get("template") == "BasicFrameTemplate":
             draw.rectangle((x, y, x + width, y + 24), fill=(48, 39, 27), outline=(130, 115, 80))
+        if widget.get("texture") == r"Interface\ChatFrame\UI-ChatIM-SizeGrabber-Up":
+            for length in (4, 8, 12):
+                draw.line((x + width - length, y + height - 2, x + width - 2, y + height - length), fill=(173, 153, 115), width=2)
         if widget["kind"] == "StatusBar":
             minimum, maximum = widget.get("minimum", 0), widget.get("maximum", 1)
             progress = max(0, min(1, (widget.get("value", 0) - minimum) / (maximum - minimum)))
@@ -92,6 +95,12 @@ def render_scene(scene, destination):
             for level in range(levels):
                 top = y + 2 + level * 4
                 draw.line((x + 3, top + 4, x + width / 2, top, x + width - 3, top + 4), fill=(218, 197, 147), width=2)
+        elif widget["kind"] == "Texture" and widget.get("texture") == r"Interface\AddOns\ProfessionKit\CraftWheel.tga":
+            with Image.open(PROJECT / "ProfessionKit/CraftWheel.tga") as atlas:
+                left, right, top, bottom = widget["textureCoordinates"]
+                tile = atlas.crop((left * atlas.width, top * atlas.height, right * atlas.width, bottom * atlas.height))
+                tile = tile.resize((round(width), round(height)), Image.Resampling.LANCZOS)
+                image.paste(tile, (round(x), round(y)), tile)
         elif widget["kind"] == "Texture" and "MiniMap-QuestArrow" in str(widget.get("texture", "")):
             texture_path = PROJECT / "reference/arrows/MiniMap-QuestArrow.PNG"
             if texture_path.exists():
@@ -107,7 +116,7 @@ def render_scene(scene, destination):
             draw.rounded_rectangle((x, y, x + width, y + height), radius=4, fill=(82, 106, 116), outline=(137, 157, 153))
             draw.line((x + width * .2, y + height * .7, x + width * .7, y + height * .2), fill=(193, 211, 199), width=3)
         if not widget.get("text"):
-            continue
+            return
         text = re.sub(r"\|c[0-9a-fA-F]{8}|\|r", "", str(widget["text"]))
         # The game uses its own coin textures; preserve their inline space in this approximation.
         coin_matches = list(re.finditer(r"\|T[^|]*UI-(Gold|Silver|Copper)Icon[^|]*\|t", text))
@@ -143,6 +152,27 @@ def render_scene(scene, destination):
                 coin_y = y + line_number * (font.size + 2) + 2
                 coin_color = {"Gold": (235, 188, 54), "Silver": (192, 203, 212), "Copper": (195, 117, 64)}[metal]
                 draw.ellipse((coin_x, coin_y, coin_x + 10, coin_y + 10), fill=coin_color, outline=(70, 49, 29))
+
+    # Draw consecutive descendants to a shared layer and composite only the viewport.
+    layer, clip_box = image, None
+    for widget in scene:
+        parent = widgets.get(widget.get("parent"))
+        while parent and not parent.get("clipsChildren"):
+            parent = widgets.get(parent.get("parent"))
+        next_clip = None
+        if parent:
+            x, y, width, height = rectangle(parent)
+            next_clip = (round(x), round(y), round(x + width), round(y + height))
+        if next_clip != clip_box:
+            if clip_box:
+                image.paste(layer.crop(clip_box), clip_box)
+            clip_box = next_clip
+            layer = image.copy() if clip_box else image
+            draw = ImageDraw.Draw(layer)
+        draw_widget(widget, layer, draw)
+    if clip_box:
+        image.paste(layer.crop(clip_box), clip_box)
+    draw = ImageDraw.Draw(image)
     draw.text((160, 835), "LAYOUT PREVIEW · Native artwork approximated · Placeholder item icons · Simulated inventory and prices", font=ImageFont.truetype(str(font_path), 12), fill=(170, 185, 190))
     image.save(destination)
 
@@ -150,17 +180,17 @@ def render_scene(scene, destination):
 def load_addon(replace_native=None, saved_variables=None):
     runtime = LuaRuntime(unpack_returned_tuples=True)
     runtime.execute((PROJECT / "validation/client.lua").read_text(encoding="utf-8"))
-    runtime.execute("ProfessionatorAddon = {}")
+    runtime.execute("ProfessionKitAddon = {}")
     if saved_variables is not None:
-        runtime.globals().ProfessionatorDB = runtime.table_from(saved_variables, recursive=True)
+        runtime.globals().ProfessionKitDB = runtime.table_from(saved_variables, recursive=True)
     elif replace_native is not None:
-        runtime.globals().ProfessionatorDB = runtime.table_from({"replaceNative": replace_native})
-    addon = runtime.globals().ProfessionatorAddon
-    manifest = (PROJECT / "Professionator/Professionator.toc").read_text(encoding="utf-8")
+        runtime.globals().ProfessionKitDB = runtime.table_from({"replaceNative": replace_native})
+    addon = runtime.globals().ProfessionKitAddon
+    manifest = (PROJECT / "ProfessionKit/ProfessionKit.toc").read_text(encoding="utf-8")
     for filename in manifest.splitlines():
         if filename.endswith(".lua"):
-            source = (PROJECT / "Professionator" / filename).read_text(encoding="utf-8")
-            runtime.execute("return function(...)\n" + source + "\nend")("Professionator", addon)
+            source = (PROJECT / "ProfessionKit" / filename).read_text(encoding="utf-8")
+            runtime.execute("return function(...)\n" + source + "\nend")("ProfessionKit", addon)
     return runtime
 
 
@@ -196,11 +226,16 @@ def main():
         camping_runtime.execute((PROJECT / "validation/camping.lua").read_text(encoding="utf-8"))
         recipe_ranking_runtime.execute((PROJECT / "validation/recipe_ranking.lua").read_text(encoding="utf-8"))
         recipe_controls_runtime.execute((PROJECT / "validation/recipe_controls.lua").read_text(encoding="utf-8"))
-        quantity_reload_runtime = load_addon(saved_variables=plain(recipe_controls_runtime.globals().ProfessionatorDB))
+        recipe_controls_runtime.execute((PROJECT / "validation/window_height.lua").read_text(encoding="utf-8"))
+        quantity_reload_runtime = load_addon(saved_variables=plain(recipe_controls_runtime.globals().ProfessionKitDB))
         quantity_reload_runtime.execute("""
-            Harness.Event("ADDON_LOADED", "Professionator")
-            ProfessionatorAddon.Open(186); Harness.Advance(1)
-            Harness.Check("Reload restores the unchecked quantity preference to state and UI", ProfessionatorAddon.state.multiplyByQuantity == false and not ProfessionatorAddon.UI.multiplyByQuantity:GetChecked())
+            Harness.Event("ADDON_LOADED", "ProfessionKit")
+            ProfessionKitAddon.Open(186); Harness.Advance(1)
+            Harness.Check("Reload restores the unchecked quantity preference to state and UI", ProfessionKitAddon.state.multiplyByQuantity == false and not ProfessionKitAddon.UI.multiplyByQuantity:GetChecked())
+            local UI = ProfessionKitAddon.UI
+            Harness.Check("Reload restores the height chosen with the resize grip", UI.frame:GetHeight() == 610 and ProfessionKitDB.windowHeight == 610)
+            Harness.Check("Reload restores the pinned Mining recipe by ID", UI.rows[1].id == 2657 and UI.rows[1].section == "Pinned"
+                and UI.recipeHeadings.Pinned:IsVisible() and UI.pinRecipe.label:GetText() == "Unpin")
         """)
         for check in plain(quantity_reload_runtime.globals().Harness.checks):
             runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
@@ -213,15 +248,15 @@ def main():
             first_open_runtime.execute((PROJECT / "validation/first_open.lua").read_text(encoding="utf-8"))
             for check in plain(first_open_runtime.globals().Harness.checks):
                 runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
-        saved_variables = plain(runtime.globals().ProfessionatorDB)
+        saved_variables = plain(runtime.globals().ProfessionKitDB)
         reload_runtime = load_addon(saved_variables=saved_variables)
         reload_runtime.execute("""
-            local before = #ProfessionatorDB.craftDiagnostics.entries
-            Harness.Event("ADDON_LOADED", "Professionator")
-            Harness.Check("Reload preserves the previous craft comparison", #ProfessionatorDB.craftDiagnostics.entries == before + 1
-                and ProfessionatorDB.craftDiagnostics.entries[before].kind == "saved")
-            for index = 1, 170 do ProfessionatorAddon.Diagnostics.Record("bounded-capture", {index = index}) end
-            Harness.Check("Craft diagnostics have a fixed retention limit", #ProfessionatorDB.craftDiagnostics.entries == 160)
+            local before = #ProfessionKitDB.craftDiagnostics.entries
+            Harness.Event("ADDON_LOADED", "ProfessionKit")
+            Harness.Check("Reload preserves the previous craft comparison", #ProfessionKitDB.craftDiagnostics.entries == before + 1
+                and ProfessionKitDB.craftDiagnostics.entries[before].kind == "saved")
+            for index = 1, 170 do ProfessionKitAddon.Diagnostics.Record("bounded-capture", {index = index}) end
+            Harness.Check("Craft diagnostics have a fixed retention limit", #ProfessionKitDB.craftDiagnostics.entries == 160)
         """)
         for check in plain(reload_runtime.globals().Harness.checks):
             runtime.globals().Harness.Check(check["name"], check["passed"], check["detail"])
@@ -240,7 +275,7 @@ def main():
         report["checks"].extend(plain(session.globals().Harness.checks))
     report["timestamp"] = datetime.now(timezone.utc).isoformat()
     report["passed"] = success
-    report["sourceHashes"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (PROJECT / "Professionator").iterdir() if path.is_file()}
+    report["sourceHashes"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in (PROJECT / "ProfessionKit").iterdir() if path.is_file()}
     (arguments.output_directory / "integration-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     for session in (harness, preferences_runtime.globals().Harness, camping_runtime.globals().Harness, recipe_ranking_runtime.globals().Harness, recipe_controls_runtime.globals().Harness, enchanting_runtime.globals().Harness, navigation_runtime.globals().Harness):
         for name, scene in session.snapshots.items():

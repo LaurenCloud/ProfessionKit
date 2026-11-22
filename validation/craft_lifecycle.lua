@@ -1,5 +1,5 @@
 -- Exercise client event sequences through the real Create buttons and event handlers.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
 local originalOre = harness.inventory[2770]
 UI.quantity:SetText("1")
@@ -13,6 +13,20 @@ harness.Advance(0.2)
 harness.Check("Blocked-action explanation survives routine refresh", UI.recipeStatus:GetText() == "WoW blocked crafting. Use Original window.")
 
 harness.silentCraft = true
+UI.quantity:SetText("2")
+UI.create:Click()
+local pendingRequest = addon.state.craftRequest
+harness.Event("UI_ERROR_MESSAGE", 0, "You are too far away to loot that corpse.")
+harness.Check("An unrelated loot error leaves the pending batch and its controls intact", pendingRequest and addon.state.craftRequest == pendingRequest
+    and UI.craftingPanel:IsVisible() and not UI.create.enabled)
+harness.Event("UNIT_SPELLCAST_START", "player", "first-cast", 2657)
+harness.Check("The delayed matching start confirms the same two-craft batch", addon.state.craftRequest == pendingRequest and pendingRequest.started and pendingRequest.remaining == 2)
+harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "first-cast", 2657)
+harness.Event("UNIT_SPELLCAST_START", "player", "second-cast", 2657)
+harness.Event("UNIT_SPELLCAST_SUCCEEDED", "player", "second-cast", 2657)
+harness.casting = false
+harness.Check("The recovered batch completes without a stale loot error", not addon.state.crafting and not addon.state.craftFailure and UI.create.enabled)
+UI.quantity:SetText("1")
 UI.create:Click()
 harness.Check("Unacknowledged request says Starting instead of Crafting", UI.craftStatus:GetText() == "Starting craft…")
 harness.Check("Unacknowledged request shows its panel without simulated progress", UI.craftingPanel:IsVisible() and not UI.craftProgress:IsShown())
@@ -36,7 +50,7 @@ for craftIndex = 1, 3 do
     harness.Event("BAG_UPDATE_DELAYED")
     if craftIndex < 3 then
         harness.Check("Batch remains active after craft " .. craftIndex, addon.state.crafting and addon.state.craftRequest.remaining == 3 - craftIndex)
-        UI.craftProgress:Run("OnUpdate", 0.1)
+        UI.craftingPanel:Run("OnUpdate", 0.1)
         harness.Check("Batch progress survives craft " .. craftIndex, UI.craftProgress:IsShown() and UI.craftProgress:GetValue() > 0 and UI.craftProgress:GetValue() < 1)
         harness.Event("UNIT_SPELLCAST_START", "player", "batch-cast", 2657)
     end

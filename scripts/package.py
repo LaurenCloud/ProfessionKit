@@ -1,4 +1,4 @@
-"""Build and verify a distributable Professionator ZIP from validated source."""
+"""Build and verify a distributable ProfessionKit ZIP from validated source."""
 import argparse
 import hashlib
 import json
@@ -24,20 +24,20 @@ def main():
     report = json.loads(report_path.read_text(encoding="utf-8"))
     if not report.get("passed"):
         parser.error("The integration workflow did not pass.")
-    addon_directory = PROJECT / "Professionator"
+    addon_directory = PROJECT / "ProfessionKit"
     sources = sorted(path for path in addon_directory.iterdir() if path.is_file())
     for source in sources:
-        if source.suffix not in (".lua", ".toc"):
+        if source.suffix not in (".lua", ".toc") and source.name != "CraftWheel.tga":
             parser.error(f"Unexpected addon file: {source.name}")
         if hashlib.sha256(source.read_bytes()).hexdigest() != report["sourceHashes"].get(source.name):
             parser.error(f"Source changed after validation: {source.name}. Run validation again.")
 
-    version = re.search(r"^## Version: (.+)$", (addon_directory / "Professionator.toc").read_text(encoding="utf-8"), re.MULTILINE).group(1).strip()
-    files = {"Professionator/" + source.name: source.read_bytes() for source in sources}
+    version = re.search(r"^## Version: (.+)$", (addon_directory / "ProfessionKit.toc").read_text(encoding="utf-8"), re.MULTILINE).group(1).strip()
+    files = {"ProfessionKit/" + source.name: source.read_bytes() for source in sources}
     for filename in ("README.md", "LICENSE"):
-        files["Professionator/" + filename] = (PROJECT / filename).read_bytes()
+        files["ProfessionKit/" + filename] = (PROJECT / filename).read_bytes()
     arguments.output_directory.mkdir(parents=True, exist_ok=True)
-    destination = arguments.output_directory / f"Professionator-{version}.zip"
+    destination = arguments.output_directory / f"ProfessionKit-{version}.zip"
     with ZipFile(destination, "w", compression=ZIP_DEFLATED) as archive:
         for filename, contents in files.items():
             archive.writestr(filename, contents)

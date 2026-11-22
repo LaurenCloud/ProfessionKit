@@ -1,6 +1,6 @@
 -- Reproduce the user's Mining list through the complete addon, then change
 -- inventory, skill eligibility, sort choice and auction data as in a live session.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
 local function ButtonFor(recipeID)
     for _, button in ipairs(UI.recipeButtons) do
@@ -12,7 +12,7 @@ local function IndexOf(recipeID)
     for index, recipe in ipairs(UI.rows) do if recipe.id == recipeID then return index end end
 end
 
-harness.Event("ADDON_LOADED", "Professionator")
+harness.Event("ADDON_LOADED", "ProfessionKit")
 for _, recipeID in ipairs({2657, 2659, 3304}) do
     harness.recipes[recipeID].info.relativeDifficulty = 3
     harness.recipes[recipeID].info.canSkillUp = false
@@ -25,6 +25,10 @@ addon.Open(186); harness.Advance(1)
 harness.Check("Forty gray Copper crafts sort above zero Bronze and Tin", UI.rows[1].id == 2657 and UI.rows[1].available == 40 and UI.rows[2].id == 2659 and UI.rows[3].id == 3304)
 harness.Check("The available gray recipe becomes the default selection", UI.selectedRecipe.id == 2657 and UI.createAll.label:GetText() == "Create all [40]" and UI.createAll.enabled)
 local copper, tin = ButtonFor(2657), ButtonFor(3304)
+copper:Run("OnEnter")
+harness.Check("Hovering Smelt Copper opens the native Copper Bar item link", GameTooltip:IsOwned(copper) and GameTooltip:IsShown() and GameTooltip.hyperlink == "item:2840")
+copper:Run("OnLeave")
+harness.Check("Leaving the recipe closes its item tooltip", not GameTooltip:IsShown())
 harness.Check("Craftable quantity is green while zero quantity is red", copper.count:GetText() == "[40]" and copper.count.textColor[2] > copper.count.textColor[1]
     and tin.count:GetText() == "[0]" and tin.count.textColor[1] > tin.count.textColor[2])
 harness.Check("Gray names retain difficulty color independently of quantity", copper.name.textColor[1] == tin.name.textColor[1] and copper.name.textColor[2] == tin.name.textColor[2]
@@ -42,7 +46,10 @@ harness.Check("A skillable recipe without materials retains its skill icon and r
     and tin.name.textColor[1] == addon.Model.difficulties[0].color[1])
 harness.Snapshot("mining-availability-and-difficulty")
 harness.inventory[2771] = 8
+copper:Run("OnEnter")
 addon.Refresh()
+harness.Check("The hovered tile switches to the Tin Bar tooltip when recipes reorder", GameTooltip:IsOwned(copper) and GameTooltip.hyperlink == "item:3576")
+copper:Run("OnLeave")
 harness.Check("Selected skillup score remains primary over available quantity", UI.rows[1].id == 3304 and UI.rows[1].available == 8 and UI.rows[2].available == 40)
 harness.Check("Explicit recipe selection survives automatic reordering", UI.selectedRecipe.id == 2657)
 harness.recipes[3304].info.relativeDifficulty, harness.recipes[3304].info.canSkillUp = 3, false

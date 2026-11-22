@@ -17,20 +17,20 @@ local function IsStation(requirement)
 end
 
 function Stations.Observe(professionID, recipes)
-    if not ProfessionatorDB then return end
-    ProfessionatorDB.stationRecipes = ProfessionatorDB.stationRecipes or {}
+    if not ProfessionKitDB then return end
+    ProfessionKitDB.stationRecipes = ProfessionKitDB.stationRecipes or {}
     local probes = {}
     for _, recipe in ipairs(recipes) do
         for _, requirement in ipairs(recipe.requirements) do
             if IsStation(requirement) and not probes[requirement.name] then probes[requirement.name] = recipe.id end
         end
     end
-    ProfessionatorDB.stationRecipes[professionID] = probes
+    ProfessionKitDB.stationRecipes[professionID] = probes
 end
 
 function Stations.Read(profession)
     local ordinary = ordinaryStations[profession.id]
-    local probes = ProfessionatorDB.stationRecipes and ProfessionatorDB.stationRecipes[profession.id] or {}
+    local probes = ProfessionKitDB.stationRecipes and ProfessionKitDB.stationRecipes[profession.id] or {}
     local statuses, checked = {}, {}
     for name, recipeID in pairs(probes) do
         -- A different profession may not have a loaded data source. Missing data

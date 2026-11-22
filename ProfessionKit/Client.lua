@@ -35,14 +35,14 @@ function Client.Item(itemID)
         vendorSell = sell, bound = bind == 1, cached = name ~= nil }
     local api = Auctionator and Auctionator.API and Auctionator.API.v1
     if api and api.GetAuctionPriceByItemID and record.cached and not record.bound then
-        local success, value = pcall(api.GetAuctionPriceByItemID, "Professionator", itemID)
+        local success, value = pcall(api.GetAuctionPriceByItemID, "ProfessionKit", itemID)
         if success and type(value) == "number" and value > 0 then record.auction = value end
         if api.GetAuctionAgeByItemID then
-            local valid, age = pcall(api.GetAuctionAgeByItemID, "Professionator", itemID)
+            local valid, age = pcall(api.GetAuctionAgeByItemID, "ProfessionKit", itemID)
             if valid and type(age) == "number" then record.age = age end
         end
     end
-    local vendor = ProfessionatorDB and ProfessionatorDB.vendorPrices and ProfessionatorDB.vendorPrices[itemID]
+    local vendor = ProfessionKitDB and ProfessionKitDB.vendorPrices and ProfessionKitDB.vendorPrices[itemID]
     record.vendorBuy = vendor and vendor.price or nil
     return record
 end
@@ -174,7 +174,7 @@ function Client.RecordVendor()
         local price, stack, extended = info and info.price, info and info.stackCount, info and info.hasExtendedCost
         local itemID = link and tonumber(link:match("item:(%d+)"))
         if itemID and price and stack and stack > 0 and not extended then
-            ProfessionatorDB.vendorPrices[itemID] = { price = price / stack, observed = time() }
+            ProfessionKitDB.vendorPrices[itemID] = { price = price / stack, observed = time() }
         end
     end
 end

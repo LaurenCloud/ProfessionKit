@@ -1,8 +1,8 @@
 -- Drive the complete addon through a deliberately silent rejection and a native craft.
 -- These fixtures verify observability, not the cause of the real client's failure.
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
-local trace = ProfessionatorDB.craftDiagnostics
+local trace = ProfessionKitDB.craftDiagnostics
 local function Last(kind)
     for index = #trace.entries, 1, -1 do
         if trace.entries[index].kind == kind then return trace.entries[index] end
@@ -12,6 +12,47 @@ end
 local messagesBefore = #harness.messages
 UI.quantity:SetText("1")
 harness.silentCraft = true
+local estimateSize, estimateColor = UI.recipeStatus.fontSize, UI.recipeStatus.textColor
+local estimateTop = select(5, UI.recipeStatus:GetPoint())
+
+UI.create:Click()
+harness.Event("UNIT_SPELLCAST_FAILED", "player", "mounted-cast", 2657)
+harness.Check("Failed craft unlocks Create immediately", UI.create.enabled and UI.recipeStatus:GetText() == "Crafting failed.")
+harness.Event("UI_ERROR_MESSAGE", 57, "You are mounted.")
+addon.Refresh()
+harness.Check("Mounted rejection from the saved Forever event sequence survives refresh", UI.recipeStatus:GetText() == "You are mounted.")
+harness.Check("Craft rejection uses larger type and the red requirement color", UI.recipeStatus.fontSize > estimateSize
+    and UI.recipeStatus.textColor[1] == UI.requirements.textColor[1] and UI.recipeStatus.textColor[2] == UI.requirements.textColor[2]
+    and UI.recipeStatus.textColor[3] == UI.requirements.textColor[3])
+local _, _, _, failureLeft, failureTop = UI.recipeStatus:GetPoint()
+local controlsBottom = -select(5, UI.create:GetPoint()) + UI.create:GetHeight()
+harness.Check("Craft failure is centered beneath the controls with padding above and below", UI.recipeStatus.justify == "CENTER"
+    and failureLeft * 2 + UI.recipeStatus:GetWidth() == UI.detail:GetWidth() and -failureTop - controlsBottom == 16
+    and UI.detail:GetHeight() + failureTop - UI.recipeStatus:GetStringHeight() == 16)
+harness.Snapshot("mining-craft-failure")
+harness.Event("UI_ERROR_MESSAGE", 0, "Unrelated error")
+harness.Check("Another UI error keeps the displayed craft reason intact", UI.recipeStatus:GetText() == "You are mounted.")
+UI.quantity:SetText("2")
+harness.Check("Clearing the failure restores the muted craft estimate", UI.recipeStatus:GetText():find("est.", 1, true)
+    and UI.recipeStatus.justify == "LEFT" and select(5, UI.recipeStatus:GetPoint()) == estimateTop
+    and UI.recipeStatus.fontSize == estimateSize and UI.recipeStatus.textColor[1] == estimateColor[1]
+    and UI.recipeStatus.textColor[2] == estimateColor[2] and UI.recipeStatus.textColor[3] == estimateColor[3])
+UI.quantity:SetText("1")
+
+UI.create:Click()
+harness.Event("UNIT_SPELLCAST_START", "player", "failed-cast", 2657)
+harness.Event("UI_ERROR_MESSAGE", 0, "Missing reagent")
+harness.Event("UNIT_SPELLCAST_FAILED", "player", "failed-cast", 2657)
+harness.Check("A confirmed cast displays a client error delivered before failure", UI.recipeStatus:GetText() == "Missing reagent")
+
+UI.create:Click()
+harness.Event("UI_ERROR_MESSAGE", 0, "Unrelated loot error")
+harness.Advance(1)
+harness.Event("UNIT_SPELLCAST_FAILED", "player", "silent-failure", 2657)
+harness.Advance(1)
+harness.Event("UI_ERROR_MESSAGE", 0, "Unrelated bag error")
+harness.Check("A failure without a nearby message keeps its plain fallback", UI.recipeStatus:GetText() == "Crafting failed.")
+
 UI.createAll:Click()
 harness.Advance(3.3)
 local request, call, timeout = Last("craft-request"), Last("craft-api-call"), Last("craft-idle-timeout")
@@ -20,7 +61,7 @@ harness.Check("Silent rejection records request, exact API arguments and timeout
 harness.Check("Craft trace includes live material and recipe evidence", request.context.materials[1].itemID == 2770
     and request.context.materials[1].owned == 6 and request.context.recipeInfo.recipeID == 2657)
 harness.Event("UI_ERROR_MESSAGE", 123, "Simulated craft rejection")
-harness.Event("ADDON_ACTION_BLOCKED", "Professionator", "CraftRecipe")
+harness.Event("ADDON_ACTION_BLOCKED", "ProfessionKit", "CraftRecipe")
 harness.Check("Client errors and blocked actions are captured", Last("UI_ERROR_MESSAGE").details.message == "Simulated craft rejection"
     and Last("ADDON_ACTION_BLOCKED").details.action == "CraftRecipe")
 harness.silentCraft = false

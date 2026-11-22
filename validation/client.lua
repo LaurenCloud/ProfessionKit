@@ -47,8 +47,21 @@ function methods:SetSize(width, height)
     if self.nativeText then self.nativeText:SetWidth(width - 12) end
 end
 function methods:SetWidth(width) self.width = width end
-function methods:SetHeight(height) self.height = height end
+function methods:SetHeight(height)
+    if self.height ~= height then
+        self.height = height
+        self:Run("OnSizeChanged", self.width, height)
+    end
+end
+function methods:SetResizable(resizable) self.resizable = resizable end
+function methods:SetResizeBounds(minWidth, minHeight, maxWidth, maxHeight)
+    self.resizeBounds = {minWidth = minWidth, minHeight = minHeight, maxWidth = maxWidth, maxHeight = maxHeight}
+end
+function methods:StartSizing(edge) self.sizingEdge = edge end
+function methods:StopMovingOrSizing() self.sizingEdge = nil end
 function methods:GetWidth() return self.width end
+function methods:GetParent() return self.parent end
+function methods:SetParent(parent) self.parent = parent end
 function methods:GetHeight() return self.height end
 function methods:SetPoint(point, relative, relativePoint, x, y)
     if type(relative) == "number" then x, y, relative, relativePoint = relative, relativePoint, self.parent, point
@@ -60,6 +73,11 @@ function methods:GetPoint()
     return point[1], harness.frames[point[2]], point[3], point[4], point[5]
 end
 function methods:ClearAllPoints() self.points = {} end
+function methods:SetAllPoints(relative)
+    self:ClearAllPoints()
+    self:SetPoint("TOPLEFT", relative, "TOPLEFT", 0, 0)
+    self:SetPoint("BOTTOMRIGHT", relative, "BOTTOMRIGHT", 0, 0)
+end
 function methods:SetScript(event, callback) self.scripts[event] = callback end
 function methods:GetScript(event) return self.scripts[event] end
 function methods:HookScript(event, callback) self.hooks[event] = self.hooks[event] or {}; table.insert(self.hooks[event], callback) end
@@ -130,6 +148,9 @@ function methods:SetAtlas(atlas, useAtlasSize)
     if useAtlasSize then self.width, self.height = 16, 16 end
 end
 function methods:SetNormalTexture(texture) self.texture = texture end
+function methods:SetPushedTexture(texture) self.pushedTexture = texture end
+function methods:SetClipsChildren(enabled) self.clipsChildren = enabled end
+function methods:SetHitRectInsets(left, right, top, bottom) self.hitInsets = {left, right, top, bottom} end
 function methods:SetScale(scale) self.scale = scale end
 function methods:SetScrollChild(child) self.scrollChild = child end
 function methods:SetVerticalScroll(value) self.verticalScroll = value end
@@ -144,12 +165,16 @@ function methods:Click(button)
     if self.kind == "CheckButton" then self.checked = not self.checked end
     self:Run("OnClick", button or "LeftButton")
 end
-for _, method in ipairs({"SetHighlightTexture", "SetFrameStrata", "SetClampedToScreen", "SetMovable", "EnableMouse", "RegisterForDrag", "StartMoving", "StopMovingOrSizing", "SetAutoFocus", "ClearFocus", "EnableMouseWheel", "SetNumeric", "SetMaxLetters", "RegisterForClicks", "SetHitRectInsets", "SetOwner", "SetHyperlink", "AddLine"}) do methods[method] = function() end end
+for _, method in ipairs({"SetHighlightTexture", "SetFrameStrata", "SetClampedToScreen", "SetMovable", "EnableMouse", "RegisterForDrag", "StartMoving", "SetAutoFocus", "ClearFocus", "EnableMouseWheel", "SetNumeric", "SetMaxLetters", "RegisterForClicks", "SetOwner", "SetHyperlink", "AddLine"}) do methods[method] = function() end end
 
 UIParent = CreateFrame("Frame", "UIParent"); UIParent:SetSize(1440, 900)
 Minimap = CreateFrame("Frame", "Minimap", UIParent); Minimap:SetSize(140, 140)
 Minimap:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -24, -24)
 GameTooltip = CreateFrame("Frame", "GameTooltip", UIParent); GameTooltip:Hide()
+function GameTooltip:SetOwner(frame) self.owner = frame end
+function GameTooltip:IsOwned(frame) return self.owner == frame end
+function GameTooltip:SetHyperlink(link) self.hyperlink = link end
+GameTooltip:SetScript("OnHide", function(self) self.owner, self.hyperlink = nil, nil end)
 ProfessionsFrame = CreateFrame("Frame", "ProfessionsFrame", UIParent); ProfessionsFrame:Hide()
 ProfessionsFrame:SetScript("OnHide", function() C_TradeSkillUI.CloseTradeSkill() end)
 STANDARD_TEXT_FONT, UISpecialFrames, SlashCmdList = "FrizQuadrata", {}, {}
@@ -242,7 +267,7 @@ function harness.Snapshot(name)
         if frame:IsVisible() then
             table.insert(rows, {identifier = frame.identifier, parent = frame.parent and frame.parent.identifier, kind = frame.kind,
                 name = frame.widgetName, width = frame.width, height = frame.height, points = frame.points, text = frame.text,
-                fontSize = frame.fontSize, textColor = frame.textColor, backgroundColor = frame.backgroundColor,
+                fontSize = frame.fontSize, textColor = frame.textColor, backgroundColor = frame.backgroundColor, clipsChildren = frame.clipsChildren,
                 shadowColor = frame.shadowColor, shadowOffset = frame.shadowOffset,
                 borderColor = frame.borderColor, texture = frame.texture, textureCoordinates = frame.textureCoordinates, rotation = frame.rotation,
                 statusBarTexture = frame.statusBarTexture, statusBarColor = frame.statusBarColor,
@@ -345,7 +370,7 @@ C_TradeSkillUI = {
     end,
     CraftRecipe = function(id, count)
         if harness.rejectCraft then harness.Event("UI_ERROR_MESSAGE", 123, "Client rejected this craft"); return end
-        if harness.blockCraft then harness.Event("ADDON_ACTION_BLOCKED", "Professionator", "UNKNOWN()"); return end
+        if harness.blockCraft then harness.Event("ADDON_ACTION_BLOCKED", "ProfessionKit", "UNKNOWN()"); return end
         table.insert(harness.crafts, {id = id, count = count})
         if harness.silentCraft then return end
         harness.casting = true

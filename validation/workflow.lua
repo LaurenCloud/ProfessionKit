@@ -1,4 +1,4 @@
-local harness, addon = Harness, ProfessionatorAddon
+local harness, addon = Harness, ProfessionKitAddon
 local UI = addon.UI
 local function Check(...) harness.Check(...) end
 local function Select(recipeID)
@@ -6,8 +6,8 @@ local function Select(recipeID)
     UI.RefreshList()
 end
 
-harness.Event("ADDON_LOADED", "Professionator")
-Check("Original-window replacement is enabled by default", ProfessionatorDB.replaceNative == true)
+harness.Event("ADDON_LOADED", "ProfessionKit")
+Check("Original-window replacement is enabled by default", ProfessionKitDB.replaceNative == true)
 addon.Open(197)
 Check("Loading window cannot craft", not UI.create.enabled)
 harness.Advance(1)
@@ -29,7 +29,7 @@ UI.search:SetText("not a recipe")
 Check("No-match search clears selection and disables crafting", #UI.rows == 0 and not UI.create.enabled and not UI.createAll.enabled)
 UI.search:SetText("")
 UI.list:Run("OnMouseWheel", -3)
-Check("Long recipe list scrolls", UI.offset == 13 - UI.visibleRecipeCount and UI.recipeButtons[1].recipe == UI.rows[UI.offset + 1])
+Check("Long recipe list scrolls", UI.recipeScrollOffset > 0 and UI.recipeButtons[UI.visibleRecipeCount].recipe == UI.rows[#UI.rows])
 UI.list:Run("OnMouseWheel", 3)
 
 Select(3755)
@@ -63,7 +63,10 @@ harness.combat = true; harness.Event("PLAYER_REGEN_DISABLED"); harness.Advance(0
 Check("Combat disables craft controls", not UI.create.enabled and not UI.createAll.enabled)
 harness.combat = false; harness.Event("PLAYER_REGEN_ENABLED"); harness.Advance(0.2)
 harness.rejectCraft = true; UI.create:Click()
-Check("Rejected client craft unlocks controls with reason", not addon.state.crafting and UI.recipeStatus:GetText():find("rejected"))
+Check("An unconfirmed client rejection keeps Create disabled while waiting for a cast", addon.state.crafting and not UI.create.enabled)
+harness.Advance(3.2)
+Check("Rejected client craft unlocks controls and retains the client message after timeout", not addon.state.crafting and UI.create.enabled
+    and UI.recipeStatus:GetText() == "Client rejected this craft")
 harness.rejectCraft = false
 
 harness.showNativeBeforeReady = true
@@ -135,10 +138,10 @@ addon.Refresh()
 Check("Unsupported choice-of-reagent recipe routes to original window", UI.selectedRecipe.unsupported and not UI.create.enabled)
 harness.recipes[3755].schematic.reagentSlotSchematics[1].reagents[2] = nil
 addon.Refresh()
-SlashCmdList.PROFESSIONATOR("report")
-Check("Diagnostic stores inspectable recipe and session data", ProfessionatorDB.diagnostic.recipeCount == 13 and ProfessionatorDB.diagnostic.liveProfessionID == 197)
+SlashCmdList.PROFESSIONKIT("report")
+Check("Diagnostic stores inspectable recipe and session data", ProfessionKitDB.diagnostic.recipeCount == 13 and ProfessionKitDB.diagnostic.liveProfessionID == 197)
 harness.Event("PLAYER_LOGOUT")
-Check("Sort preference persists", ProfessionatorDB.sort == "auction")
+Check("Sort preference persists", ProfessionKitDB.sort == "auction")
 
 -- Exercise a short Mining list and two-profession layout.
 GetProfessions = function() return 1, nil, nil, nil, 3 end
@@ -165,5 +168,5 @@ addon.Refresh()
 harness.Snapshot("mining-short-list")
 
 -- Live-state summaries for the inspectable report.
-harness.result = {checks = harness.checks, crafts = harness.crafts, diagnostic = ProfessionatorDB.diagnostic,
+harness.result = {checks = harness.checks, crafts = harness.crafts, diagnostic = ProfessionKitDB.diagnostic,
     scope = "Complete addon executed under Lua 5.1 with simulated game frames, events, recipes, inventory and auction data. No game files or character inventory modified."}
