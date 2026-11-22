@@ -1,8 +1,24 @@
-# ProfessionKit
+![ProfessionKit banner with a leather field kit, copper bar, and spool of twine](https://raw.githubusercontent.com/LaurenCloud/ProfessionKit/d4c4f2c6c87e38d0cf93fa7b0e40ae110417be63/artwork/listing/ProfessionKit-banner.png)
 
-A compact professions window for **WoW Forever**, with recipe rankings based on the materials in your bags. Uses native WoW artwork, item icons, coin icons, and crafting controls.
+**Whether you're crafting for skill-ups or profits, ProfessionKit can tell you your best options!** ProfessionKit replaces the default professions window for **WoW Forever** and makes the process easy.
 
-Early development release. Targets Forever interface **16001** and the English client.
+Sort your learned recipes by estimated **Skill-ups** when you’re leveling, or by **Prices** when you’re deciding what to sell. Leave **× Quantity** checked to compare crafting everything, or uncheck it to compare single crafts.
+
+![ProfessionKit’s Alchemy window showing a pinned Elixir of Lesser Agility, its reagents, and the option to craft ten](https://raw.githubusercontent.com/LaurenCloud/ProfessionKit/d4c4f2c6c87e38d0cf93fa7b0e40ae110417be63/artwork/listing/Alchemy-pinned-recipes.png)
+
+## At the crafting bench
+
+- **Keep favorites handy.** Select **Pin recipe** to keep a recipe at the top of its profession. Your pins stay there across reloads.
+- **Make your materials count.** With **× Quantity** on, a yellow recipe you can craft a dozen times can outrank an orange recipe you can craft once. Switch to **Prices** to see which batch has the highest auction value.
+- **Price both sides of a recipe.** See the auction price of each reagent alongside its vendor price, then check what the finished item sells for. The recipe list shows auction value per item and for the whole batch.
+
+## Getting started
+
+Open a profession as usual, press **K**, click the Field Kit on your minimap, or type `/professionkit`. **Vanilla professions** takes you back to Blizzard’s window for the current session.
+
+**Auctionator is optional.** ProfessionKit uses prices from your local Auctionator scans and shows how recently the output price was seen. Auction values are for the finished items before material costs and auction fees.
+
+Targets WoW Forever interface **16001** and the English client.
 
 ## Using the addon
 
@@ -15,7 +31,7 @@ Drag the bottom-right grip up or down to choose a window height. A taller window
 - Equal scores sort by available craft quantity, highest first, then alphabetically. Quantity is green when materials are available and red at zero; recipe-name colors show skill-up difficulty separately.
 - Skill-up estimates align left and total/each prices align right below the icon, quantity, and recipe name. The selected recipe connects to its detail panel like a tab. The sort buttons only change ordering; both values stay visible.
 - All learned recipes remain visible unless excluded by the search, which matches recipe names and categories.
-- Select a recipe and click **Pin** in its details to keep it in **Pinned** at the top of that profession. Pinned regular and Camping recipes rank together using the current sort and **× Quantity** setting. Click **Unpin** to return a recipe to **Recipes** or **Camping**. Pins are saved across reloads.
+- Select a recipe and click **Pin recipe** below its name to keep it in **Pinned** at the top of that profession. Pinned regular and Camping recipes rank together using the current sort and **× Quantity** setting. Click **Unpin recipe** to return a recipe to **Recipes** or **Camping**. Pins are saved across reloads.
 - Recipe details show owned/required materials, vendor purchase prices, auction prices, and the resulting item.
 - Hover a recipe in the list to see the crafted item's native tooltip. Equipment enchants show the spell tooltip.
 - A gold wheel around the recipe icon marks the active craft. It fills clockwise over the batch, or spins when the client has no duration.
@@ -25,7 +41,7 @@ Drag the bottom-right grip up or down to choose a window height. A taller window
 - Missing tools or stations replace the craft controls with a requirement such as **Requires: Forge**.
 - Small station icons beside profession ranks light up with a green border when a relevant station is nearby. Hover for individual station names and states, including specialized stations from learned recipes. Dim icons mean unavailable or not yet known; the tooltip distinguishes these. Individual recipes still check their own tools and stations.
 
-Right-click the minimap icon to configure **Replace the normal professions window**, enabled by default. Left-click always opens ProfessionKit. **Original window**, or `/professionkit native`, opens Blizzard's window for the current session.
+Drag the Field Kit button around the minimap rim to choose its position. ProfessionKit remembers that position across reloads. Left-click to toggle the professions window. Right-click to configure **Replace the normal professions window**, enabled by default. **Vanilla professions**, or `/professionkit native`, opens Blizzard's window for the current session.
 
 ## Installation
 
@@ -43,7 +59,7 @@ Skill-up estimates use recipe difficulty weights: orange 1, yellow 0.5, green 0.
 
 Prices use `available crafts × minimum output quantity × recorded auction price per item`. This is gross output value, not profit. Each recipe is an alternative use of the same materials; the list is not a combined crafting plan. Unknown prices sort last within each section and display as a dash. The header shows the actual recorded output price's age when available. Vendor purchase prices are learned when visiting a merchant; they are distinct from vendor sale values.
 
-Craftability counts materials directly in your bags. It does not plan intermediate crafts or purchases. **Original window** remains available for trade-window enchants on another player's gear, disenchanting/salvage, gathering journals, and recipes requiring reagent choices. Crafting always requires an explicit click and rechecks the live profession, inventory, requirements, cooldown, allowed quantity, target item, and combat state. Nothing buys materials, posts auctions, or sends messages.
+Craftability counts materials directly in your bags. It does not plan intermediate crafts or purchases. **Vanilla professions** remains available for trade-window enchants on another player's gear, disenchanting/salvage, gathering journals, and recipes requiring reagent choices. Crafting always requires an explicit click and rechecks the live profession, inventory, requirements, cooldown, allowed quantity, target item, and combat state. Nothing buys materials, posts auctions, or sends messages.
 
 ## Diagnostics and limitations
 
@@ -51,7 +67,7 @@ Local diagnostics are currently enabled and bounded to the latest 160 entries in
 
 The addon has been exercised through full-addon simulated workflows and live personal use. Protected API behavior, client artwork, station proximity, and native queue survival when switching professions during crafting still require in-game verification. Camping grouping currently recognizes the English client category name.
 
-Report issues through [GitHub Issues](https://github.com/LaurenCloud/ProfessionKit/issues), with the addon version, profession/recipe, expected behavior, and what happened. Mention whether the same craft works in **Original window**.
+Report issues through [GitHub Issues](https://github.com/LaurenCloud/ProfessionKit/issues), with the addon version, profession/recipe, expected behavior, and what happened. Mention whether the same craft works in **Vanilla professions**.
 
 ## Development
 
